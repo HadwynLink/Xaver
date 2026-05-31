@@ -1,64 +1,39 @@
+use crate::messages::*;
+use crate::savemanager;
+use chrono::{DateTime, Local};
 use iced::{
-    Element, Length,
-    alignment::Vertical,
-    widget::{Button, Column, Row, Text, button, column, combo_box, row, scrollable, text},
+    Length,
+    widget::{Column, button, column, pick_list, row, text},
 };
-use serde::Deserialize;
-use std::env;
 use std::fs;
+use std::io;
+use std::process::Command;
 
-#[derive(Debug, Deserialize)]
-struct Config {
-    savedir: String,
-    backupdir: String,
+// Selector for save slots
+pub struct SaveSelector {
+    tarfold: String,               // Game folder
+    backupfold: String,            // Backups folder
+    saves: Vec<String>,            // List of game saves
+    backups: Vec<String>,          // Need for cross-referencing
+    savedisp: Vec<String>,         // Display/fancy list of saves
+    selected_disp: Option<String>, // Selected save (fancy)
+    pub selected_save: String,     // Selected save
 }
-
-#[derive(Debug, Clone)]
-enum Message {
-    Save,
-    Load,
-    Checkpoint,
-    SaveSelected(String),
-    Refresh,
-    Launch,
-    Settings,
-}
-
-struct SaveSelector {
-    tarfold: String,
-    backupfold: String,
-    saves: Vec<String>,
-    backups: Vec<String>, // Need for cross-referencing
-    combo_state: combo_box::State<String>,
-    selected_save: Option<String>,
-}
-
 impl SaveSelector {
-    fn default() -> Self {
-        let cfgpath: String = format!(
-            "{}/config/config.json",
-            env::current_dir()
-                .expect("could not find current directory")
-                .display()
-        );
-        let config = fs::read_to_string(cfgpath).expect("Config error: could not find config.json");
-        let data: Config =
-            serde_json::from_str(&config).expect("Config error: could not parse file");
-
-        let tardir = format!("{}", data.savedir);
-        let savedir = format!("{}", data.backupdir);
-        let saveops = savemanager::compile_saves(&tardir);
-        let backops = savemanager::compile_saves(&savedir);
+    pub fn default(gamedir: &String, savedir: &String) -> Self {
+        let saveops = savemanager::compile_saves(gamedir);
+        let backops = savemanager::compile_saves(savedir);
         Self {
-            combo_state: combo_box::State::new(saveops.clone()),
-            selected_save: None,
+            selected_disp: None,
+            selected_save: String::new(),
+            savedisp: savemanager::generate_save_display(gamedir, &saveops),
             saves: saveops,
             backups: backops,
-            tarfold: tardir,
-            backupfold: savedir,
+            tarfold: format!("{}", gamedir),
+            backupfold: format!("{}", savedir),
         }
     }
-    fn update(&self) -> Column<'_, Message> {
+    pub fn update(&mut self, message: Message) {
         match message {
             Message::SaveSelected(option) => {
                 self.selected_disp = Some(option);
@@ -86,10 +61,8 @@ impl SaveSelector {
             _ => {}
         }
     }
-    fn view(&self) -> Column<'_, Message> {
-        let mut screening = column![
-            text(format!("Game folder: {}", self.tarfold)),
-            text(format!("Saves folder: {}", self.backupfold)),
+    pub fn view(&self) -> Column<'_, Message> {
+        let screening = column![
             row![
                 button("Refresh")
                     .on_press(Message::Refresh)
@@ -102,17 +75,82 @@ impl SaveSelector {
                     .width(Length::Fill),
             ]
             .spacing(10),
-            text("Current Save:"),
-            combo_box(
-                &self.combo_state,
-                "Choose a save...",
-                self.selected_save.as_ref(),
-                Message::SaveSelected
-            ),
-            self.info_widget.view()
+            row!(
+                text("Current Save:").height(32).center(),
+                pick_list(
+                    self.savedisp.clone(),
+                    self.selected_disp.clone(),
+                    Message::SaveSelected
+                )
+                .width(Length::Fill),
+            )
+            .spacing(10),
         ]
         .padding(5)
-        .spacing(5);
+        .spacing(10);
+        screening
+    }
+}
+
+// Information about the current save
+pub struct SaveInfo {
+    created_date: String,
+    charname: String,
+    gametype: String,
+    charloc: String,
+}
+impl SaveInfo {
+    pub fn default() -> Self {
+        Self {
+            created_date: String::new(),
+            charname: String::new(),
+            gametype: String::new(),
+            charloc: String::new(),
+        }
+    }
+    pub fn update_info(&mut self, cursave: &String, curtar: &String) -> io::Result<()> {
+        if cursave != "" {
+            let mut fullpath: String = cursave.clone();
+            fullpath.push_str(&curtar);
+            let metadata = fs::metadata(&fullpath).unwrap();
+            let created: DateTime<Local> = metadata.created()?.into();
+            self.created_date = format!("{}", created.format("%m/%d/%Y at %-I:%M %p"));
+            self.charname = savemanager::read_name(cursave, curtar);
+            if curtar.contains("Arena") {
+                self.gametype = format!("Arena");
+            } else {
+                self.gametype = format!("Campaign");
+            }
+            self.charloc = savemanager::read_level(cursave, curtar);
+        }
+        Ok(())
+    }
+    pub fn view(&self) -> Column<'_, Message> {
+        let screening = column![
+            text!("Character Name: {}", self.charname),
+            text!("Location: {}", self.charloc),
+            //text!("Save Type: {}", self.gametype),
+            text!("Created: {}", self.created_date),
+        ]
+        .padding(5)
+        .spacing(10);
+        screening
+    }
+}
+
+//
+pub struct SaveSlot {
+    // Save name
+    // Date modified
+    // Player location
+    // File size
+}
+impl SaveSlot {
+    pub fn default() -> Self {
+        Self {}
+    }
+    pub fn view(&self) -> Column<'_, Message> {
+        let screening = column![text!("Save Slot:"),].padding(5).spacing(10);
         screening
     }
 }
