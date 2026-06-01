@@ -25,41 +25,28 @@ pub fn list_files(list: &Vec<String>) {
     }
 }
 
-// Copies a given save file into the backups folder
-pub fn copy_save(from: &String, to: &String, tar: &String) {
-    let mut fullpath: String = format!("{}", from);
-    fullpath.push_str(tar);
-    let mut topath: String = format!("{}", to);
-    topath.push_str(tar);
-    println!("{}", fullpath);
-    fs::copy(fullpath, topath).expect("File could not copy!");
-    println!("Successfully copied {tar} to {to}");
+// Creates a new save, making a new directory for it if it doesn't exist
+pub fn new_save(from: &String, savedir: &String, savename: &String) {
+    fs::create_dir_all(savedir).expect("Could not create directory");
+    fs::copy(from, format!("{}/{}.rsg", savedir, savename)).expect("File could not copy!");
 }
 
-// Copies the given save file, modifies the extension, and overwrites the checkpoint of that name
-pub fn checkpointify(at: &String, tar: &String) {
-    let mut fullpath: String = format!("{}", at);
-    fullpath.push_str(tar);
-    let mut topath: String = format!("{}", at);
-    topath.push_str(&tar.replace(".rsg", ".rcp"));
-    println!("{}", fullpath);
-    fs::copy(fullpath, topath).expect("File could not copy!");
-    println!("Successfully checkpointed {tar}");
+// Copies a given save file into the backups folder
+pub fn copy_save(from: &String, to: &String) {
+    fs::copy(from, to).expect("File could not copy!");
 }
 
 // Outputs the name of the character in the file
-pub fn read_name(at: &String, tar: &String) -> String {
+pub fn read_name(tar: &String) -> String {
     let mut startchar = 8262; // Position of the name in memory
     let mut endchar = 8280;
-    if tar.contains("Arena") {
+    if tar.contains("Arena0") {
         // Arena saves store names differently
         startchar = 8390;
         endchar = 8408;
     }
-    let mut fullpath: String = format!("{}", at);
-    fullpath.push_str(tar);
 
-    let file = File::open(fullpath).expect("Couldn't find file");
+    let file = File::open(tar).expect("Couldn't find file");
     let mut reader = BufReader::new(file);
 
     let mut line = vec![0u8; 9000];
@@ -76,18 +63,16 @@ pub fn read_name(at: &String, tar: &String) -> String {
 }
 
 // Returns the current level the character is on
-pub fn read_level(at: &String, tar: &String) -> String {
+pub fn read_level(tar: &String) -> String {
     let mut startchar = 16362; // Position of the location in memory (approximately)
     let mut endchar = 16400;
-    if tar.contains("Arena") {
+    if tar.contains("Arena0") {
         // Arena is weird for locations. This will only ever show one thing.
         startchar = 16362;
         endchar = 16400;
     }
-    let mut fullpath: String = format!("{}", at);
-    fullpath.push_str(tar);
 
-    let file = File::open(fullpath).expect("Couldn't find file");
+    let file = File::open(tar).expect("Couldn't find file");
     let mut reader = BufReader::new(file);
 
     let mut line = vec![0u8; 17000];
@@ -110,25 +95,25 @@ pub fn read_level(at: &String, tar: &String) -> String {
     } else if text.contains("02") {
         answer = format!("Level 2");
     } else if text.contains("c1") {
-        answer = format!("Level 2.5: The Catacombs");
+        answer = format!("Level 2.5\n(The Catacombs)");
     } else if text.contains("03") {
         answer = format!("Level 3");
     } else if text.contains("04") {
-        answer = format!("Level 4: The Archives");
+        answer = format!("Level 4\n(The Archives)");
     } else if text.contains("05_sw") {
-        answer = format!("Level 5.5: The Crossroads Sewers");
+        answer = format!("Level 5.5\n(The Crossroads Sewers)");
     } else if text.contains("05") {
-        answer = format!("Level 5: The Crossroads");
+        answer = format!("Level 5\n(The Crossroads)");
     } else if text.contains("06") {
-        answer = format!("Level 6: The Golem Area");
+        answer = format!("Level 6\n(The Forge)");
     } else if text.contains("07_sw") {
-        answer = format!("Level 7.5: The Market Sewers");
+        answer = format!("Level 7.5\n(The Market Sewers)");
     } else if text.contains("07") {
-        answer = format!("Level 7: The Market");
+        answer = format!("Level 7\n(The Market)");
     } else if text.contains("08") {
-        answer = format!("Level 8: The Gentry");
+        answer = format!("Level 8\n(The Gentry)");
     } else if text.contains("67") {
-        answer = format!("Level 9: The Gardens");
+        answer = format!("Level 9\n(The Gardens)");
     } else {
         answer = format!("Unknown Area! Level ID: {}", text);
     }
@@ -153,7 +138,7 @@ pub fn generate_save_display(at: &String, saves: &Vec<String>) -> Vec<String> {
                 save.replace("Exanima", "").replace(".rsg", "")
             ));
         }
-        save_display.push_str(&format!("({})", read_name(at, save)));
+        save_display.push_str(&format!("({})", read_name(&format!("{}{}", at, save))));
         savedisps.push(save_display);
     }
 

@@ -9,6 +9,10 @@ pub enum Message {
     Refresh,
     Launch,
     Settings,
+    NewSave,
+    OverwriteSave(String),
+    RestoreSave(String),
+    DeleteSave(String),
 }
 
 #[derive(Debug, Deserialize)]
