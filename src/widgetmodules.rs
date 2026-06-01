@@ -16,8 +16,14 @@ use std::os::unix::fs::MetadataExt;
 use std::process::Command;
 
 fn banner<'a>(filter_method: image::FilterMethod) -> Container<'a, Message> {
+    let banpath: String = format!(
+        "{}/images/Banner.png",
+        env::current_dir()
+            .expect("could not find current directory")
+            .display()
+    );
     center_x(
-        image("/home/hadwyn/Documents/Projects/Xaver/src/images/Banner.png")
+        image(banpath)
             .filter_method(filter_method)
             .width(Length::Fill),
     )
@@ -252,15 +258,26 @@ impl FullState {
                             .size(15)
                             .color(color!(150, 150, 150))
                     )
-                    .width(200),
+                    .width(220),
                     rule::vertical(2),
-                    text!(
-                        "Location: {}",
-                        savemanager::read_level(&format!("{}{}", &self.selected_path, &tar))
-                    )
-                    .height(75)
-                    .center()
-                    .width(Length::Fill),
+                    column![
+                        text!(
+                            "Name: {}",
+                            savemanager::read_name(&format!("{}{}", &self.selected_path, &tar))
+                        )
+                        .height(20)
+                        .center()
+                        .width(Length::Fill),
+                        rule::horizontal(2),
+                        text!(
+                            "Location: {}",
+                            savemanager::read_level(&format!("{}{}", &self.selected_path, &tar))
+                        )
+                        .height(Length::Fill)
+                        .center()
+                        .width(Length::Fill)
+                    ]
+                    .spacing(5),
                     rule::vertical(2),
                     text!("Saved {}", time_saved.format("%m/%d/%Y at %-I:%M %p"))
                         .height(75)
@@ -270,21 +287,23 @@ impl FullState {
                     button("Save")
                         .on_press(Message::OverwriteSave(tar.clone()))
                         .width(75)
-                        .height(55),
+                        .height(75),
                     button("Restore")
                         .on_press(Message::RestoreSave(tar.clone()))
                         .width(75)
-                        .height(55),
+                        .height(75),
                     button("Delete")
                         .on_press(Message::DeleteSave(tar.clone()))
                         .width(75)
-                        .height(55),
+                        .height(75),
                 )
+                .align_y(iced::Alignment::Center)
                 .spacing(10)
             )
+            .align_y(iced::Alignment::Center)
             .padding(10)
             .width(Length::Fill)
-            .height(75)
+            .height(85)
             .style(container::rounded_box),
         ]
     }
