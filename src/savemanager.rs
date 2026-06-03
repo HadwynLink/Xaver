@@ -1,6 +1,8 @@
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read};
+use std::process::Command;
+use std::str;
 
 // load saves into data structure to call on later
 pub fn compile_saves(from: &String) -> Vec<String> {
@@ -38,52 +40,128 @@ pub fn copy_save(from: &String, to: &String) {
 
 // Outputs the name of the character in the file
 pub fn read_name(tar: &String) -> String {
-    let mut startchar = 8262; // Position of the name in memory
-    let mut endchar = 8280;
-    if tar.contains("Arena0") {
-        // Arena saves store names differently
-        startchar = 8390;
-        endchar = 8408;
+    let output = Command::new("strings") // This can chew up a lot of resources. Need to find a faster way.
+        .arg(tar)
+        .output()
+        .expect("failed to execute process")
+        .stdout;
+
+    let stringout = str::from_utf8(&output).expect("Could not extract string");
+
+    let mut foundname = false;
+    let mut name = String::new();
+
+    let name_marker = if tar.contains("Arena") {
+        "arenahub"
+    } else {
+        "0a\"A"
+    };
+
+    for line in stringout.lines() {
+        if foundname == true {
+            name = format!("{}", line);
+            break;
+        } else {
+            if line.contains(name_marker) {
+                foundname = true;
+            }
+        }
+    }
+    name
+}
+
+// Grabs both name and location in one command.
+pub fn read_info(tar: &String) -> Vec<String> {
+    let output = Command::new("strings") // This can chew up a lot of resources. Need to find a faster way.
+        .arg(tar)
+        .output()
+        .expect("failed to execute process")
+        .stdout;
+
+    let stringout = str::from_utf8(&output).expect("Could not extract string");
+
+    let mut levelraw = String::new();
+    if tar.contains("Arena") {
+        levelraw = format!("arenahub") // This will always be the case for arena saves
+    }
+    let mut name = String::new();
+    let name_marker = if tar.contains("Arena") {
+        "arenahub"
+    } else {
+        "0a\"A"
+    };
+
+    let mut foundname = false;
+    for line in stringout.lines() {
+        if levelraw.is_empty() || name.is_empty() {
+            if foundname == true && name.is_empty() {
+                name = format!("{}", line);
+            } else if line.contains(name_marker) {
+                foundname = true;
+            } else if line.contains("Zoe") && levelraw.is_empty() {
+                levelraw = format!("{}", line);
+            }
+        } else {
+            break;
+        }
     }
 
-    let file = File::open(tar).expect("Couldn't find file");
-    let mut reader = BufReader::new(file);
+    let level;
+    if levelraw.contains("arenahub") {
+        level = format!("Arena Hub");
+    } else if levelraw.contains("01") {
+        level = format!("Level 1");
+    } else if levelraw.contains("02") {
+        level = format!("Level 2");
+    } else if levelraw.contains("c1") {
+        level = format!("Level 2.5\n(The Catacombs)");
+    } else if levelraw.contains("03") {
+        level = format!("Level 3");
+    } else if levelraw.contains("04") {
+        level = format!("Level 4\n(The Archives)");
+    } else if levelraw.contains("05_sw") {
+        level = format!("Level 5.5\n(The Crossroads Sewers)");
+    } else if levelraw.contains("05") {
+        level = format!("Level 5\n(The Crossroads)");
+    } else if levelraw.contains("06") {
+        level = format!("Level 6\n(The Forge)");
+    } else if levelraw.contains("07_sw") {
+        level = format!("Level 7.5\n(The Market Sewers)");
+    } else if levelraw.contains("07") {
+        level = format!("Level 7\n(The Market)");
+    } else if levelraw.contains("08") {
+        level = format!("Level 8\n(The Gentry)");
+    } else if levelraw.contains("67") {
+        level = format!("Level 9\n(The Gardens)");
+    } else {
+        level = format!("Unknown Area! Level ID: {}", levelraw);
+    }
 
-    let mut line = vec![0u8; 9000];
-    reader.read(&mut line).expect("Couldn't read file");
-
-    let slice = &line[startchar..endchar];
-
-    let text = String::from_utf8_lossy(slice)
-        .chars()
-        .filter(|&c| c != '\u{FFFD}')
-        .collect();
-
-    text
+    vec![name, level]
 }
 
 // Returns the current level the character is on
 pub fn read_level(tar: &String) -> String {
-    let mut startchar = 16362; // Position of the location in memory (approximately)
-    let mut endchar = 16400;
-    if tar.contains("Arena0") {
-        // Arena is weird for locations. This will only ever show one thing.
-        startchar = 16362;
-        endchar = 16400;
+    let mut text = String::new();
+    if tar.contains("Arena") {
+        text = format!("arenahub"); // This will always be the case for the arena
+    } else {
+        let output = Command::new("strings")
+            .arg(tar)
+            .output()
+            .expect("failed to execute process")
+            .stdout;
+
+        let stringout = str::from_utf8(&output).expect("Could not extract string");
+
+        for line in stringout.lines() {
+            // The first instance of this key seems to be the right one
+            if line.contains("Zoe") {
+                text = format!("{}", line);
+                break;
+            }
+        }
     }
-
-    let file = File::open(tar).expect("Couldn't find file");
-    let mut reader = BufReader::new(file);
-
-    let mut line = vec![0u8; 17000];
-    reader.read(&mut line).expect("Couldn't read file");
-
-    let slice = &line[startchar..endchar];
-
-    let text: String = String::from_utf8_lossy(slice)
-        .chars()
-        .filter(|&c| c != '\u{FFFD}')
-        .collect();
 
     let mut answer = String::new();
     // This is a *nasty* if-else loop. Very icky. No good.

@@ -13,6 +13,7 @@ pub enum Message {
     OverwriteSave(String),
     RestoreSave(String),
     DeleteSave(String),
+    ContentChanged(String),
 }
 
 #[derive(Debug, Deserialize)]

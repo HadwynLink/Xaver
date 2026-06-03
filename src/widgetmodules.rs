@@ -2,9 +2,10 @@ use crate::messages::*;
 use crate::savemanager;
 use chrono::{DateTime, Local};
 use iced::{
-    Color, Length, color,
+    Length, color,
     widget::{
-        Column, Container, button, center_x, column, container, image, pick_list, row, rule, text,
+        Column, Container, button, center_x, column, container, image, pick_list, row, rule,
+        scrollable, text, text_input,
     },
 };
 
@@ -15,18 +16,15 @@ use std::io;
 use std::os::unix::fs::MetadataExt;
 use std::process::Command;
 
-fn banner<'a>(filter_method: image::FilterMethod) -> Container<'a, Message> {
+fn create_img<'a>(path: &String, filter_method: image::FilterMethod) -> Container<'a, Message> {
     let banpath: String = format!(
-        "{}/images/Banner.png",
+        "{}/images/{}",
         env::current_dir()
             .expect("could not find current directory")
-            .display()
+            .display(),
+        path
     );
-    center_x(
-        image(banpath)
-            .filter_method(filter_method)
-            .width(Length::Fill),
-    )
+    center_x(image(banpath).filter_method(filter_method))
 }
 
 pub struct FullState {
@@ -47,6 +45,8 @@ pub struct FullState {
     charname: String,     // Name of selected character
     gametype: String,     // Type of game (Arena vs Campaign)
     charloc: String,      // Location of the character in-game
+    newsavename: String,
+    defaultsavename: String,
 }
 
 impl FullState {
@@ -80,6 +80,8 @@ impl FullState {
             charloc: String::new(),
             selected_path: String::new(),
             backups: Vec::new(),
+            newsavename: String::new(),
+            defaultsavename: String::new(),
         }
     }
     pub fn update(&mut self, message: Message) {
@@ -108,9 +110,11 @@ impl FullState {
                 } else {
                     self.selected_save = String::new();
                 }
+                self.findunusedsavename(self.backups.len() as i64 + 1);
             }
             Message::Refresh => {
                 self.refresh();
+                self.findunusedsavename(self.backups.len() as i64 + 1);
             }
             Message::Launch => {
                 Command::new("xdg-open")
@@ -119,12 +123,19 @@ impl FullState {
                     .unwrap();
             }
             Message::NewSave => {
+                let savename = if self.newsavename != "" {
+                    &self.newsavename
+                } else {
+                    &self.defaultsavename
+                };
                 savemanager::new_save(
                     &format!("{}{}", self.gamefolder, self.selected_save),
                     &self.selected_path,
-                    &format!("Save {}", self.backups.len() + 1),
+                    savename,
                 );
+                self.newsavename.clear();
                 self.backups = savemanager::compile_saves(&self.selected_path);
+                self.findunusedsavename(self.backups.len() as i64 + 1);
             }
             Message::OverwriteSave(tar) => {
                 savemanager::copy_save(
@@ -144,19 +155,39 @@ impl FullState {
                 fs::remove_file(format!("{}{}", &self.selected_path, tar))
                     .expect("Couldn't delete save!");
                 self.refresh();
+                self.findunusedsavename(self.backups.len() as i64 + 1);
+            }
+            Message::ContentChanged(savename) => {
+                self.newsavename = savename;
             }
             _ => {}
         }
     }
     pub fn view(&self) -> Column<'_, Message> {
-        let mut screening: Column<'_, Message> =
-            column!(banner(image::FilterMethod::Linear), self.save_selector());
+        let mut screening: Column<'_, Message> = column!(
+            create_img(&format!("Banner.png"), image::FilterMethod::Linear).width(Length::Fill),
+            self.save_selector()
+        );
         if self.selected_disp != None {
             screening = screening.push(self.save_info());
             screening = screening.push(self.save_slots());
         }
 
         screening
+    }
+
+    // You know who ELSE uses recursion? You know who ELSE uses recursion? You know who--
+    // Should find an unused save number.
+    fn findunusedsavename(&mut self, save_num: i64) {
+        self.defaultsavename = format!("Save {}", save_num);
+        if fs::exists(format!(
+            "{}/{}.rsg",
+            &self.selected_path, &self.defaultsavename
+        ))
+        .expect("Could not check if file exists!")
+        {
+            self.findunusedsavename(save_num + 1);
+        }
     }
 
     fn refresh(&mut self) {
@@ -204,13 +235,14 @@ impl FullState {
                 .expect("Couldn't find creation date")
                 .into();
             self.created_date = format!("{}", created.format("%m/%d/%Y at %-I:%M %p"));
-            self.charname = savemanager::read_name(&fullpath);
             if fullpath.contains("Arena0") {
                 self.gametype = format!("Arena");
             } else {
                 self.gametype = format!("Campaign");
             }
-            self.charloc = savemanager::read_level(&fullpath);
+            let save_info = savemanager::read_info(&fullpath);
+            self.charname = format!("{}", save_info[0]);
+            self.charloc = format!("{}", save_info[1]);
         }
         Ok(())
     }
@@ -231,16 +263,24 @@ impl FullState {
         let mut screening = column![
             text!("Saves").size(25).width(Length::Fill).center(),
             rule::horizontal(2),
-            button(text!("New Save").height(40).center().width(Length::Fill))
-                .width(Length::Fill)
-                .height(40)
-                .on_press(Message::NewSave),
+            row![
+                text_input(&self.defaultsavename, &self.newsavename)
+                    .width(Length::FillPortion(1))
+                    .on_input(Message::ContentChanged),
+                button(text!("Create New Save").center().width(Length::Fill))
+                    .width(Length::FillPortion(2))
+                    .on_press(Message::NewSave)
+            ]
+            .align_y(iced::Alignment::Center),
         ]
         .padding(5)
         .spacing(10);
+        let mut scrollarea = column![].spacing(10);
         for save in &self.backups {
-            screening = screening.push(self.save_slot(&save));
+            scrollarea = scrollarea.push(self.save_slot(&save));
         }
+        let scroll = scrollable(scrollarea);
+        screening = screening.push(scroll);
         screening
     }
 
@@ -249,6 +289,7 @@ impl FullState {
         let time_saved: DateTime<Local> =
             meta.modified().expect("Couldn't find creation date").into();
         let file_size: f64 = (meta.size() as f64) / 1000000.0;
+        let save_info = savemanager::read_info(&format!("{}{}", &self.selected_path, &tar));
         column![
             container(
                 row!(
@@ -261,21 +302,15 @@ impl FullState {
                     .width(220),
                     rule::vertical(2),
                     column![
-                        text!(
-                            "Name: {}",
-                            savemanager::read_name(&format!("{}{}", &self.selected_path, &tar))
-                        )
-                        .height(20)
-                        .center()
-                        .width(Length::Fill),
+                        text!("Name: {}", save_info[0])
+                            .height(20)
+                            .center()
+                            .width(Length::Fill),
                         rule::horizontal(2),
-                        text!(
-                            "Location: {}",
-                            savemanager::read_level(&format!("{}{}", &self.selected_path, &tar))
-                        )
-                        .height(Length::Fill)
-                        .center()
-                        .width(Length::Fill)
+                        text!("Location: {}", save_info[1])
+                            .height(Length::Fill)
+                            .center()
+                            .width(Length::Fill)
                     ]
                     .spacing(5),
                     rule::vertical(2),
@@ -284,18 +319,39 @@ impl FullState {
                         .center()
                         .width(Length::Fill),
                     rule::vertical(2),
-                    button("Save")
-                        .on_press(Message::OverwriteSave(tar.clone()))
-                        .width(75)
-                        .height(75),
-                    button("Restore")
-                        .on_press(Message::RestoreSave(tar.clone()))
-                        .width(75)
-                        .height(75),
-                    button("Delete")
-                        .on_press(Message::DeleteSave(tar.clone()))
-                        .width(75)
-                        .height(75),
+                    button(column![
+                        create_img(&format!("save.png"), image::FilterMethod::Linear)
+                            .height(Length::FillPortion(3)),
+                        text!("Save")
+                            .height(Length::FillPortion(1))
+                            .width(Length::Fill)
+                            .center()
+                    ])
+                    .on_press(Message::OverwriteSave(tar.clone()))
+                    .width(75)
+                    .height(75),
+                    button(column![
+                        create_img(&format!("restore.png"), image::FilterMethod::Linear)
+                            .height(Length::FillPortion(3)),
+                        text!("Restore")
+                            .height(Length::FillPortion(1))
+                            .width(Length::Fill)
+                            .center()
+                    ])
+                    .on_press(Message::RestoreSave(tar.clone()))
+                    .width(75)
+                    .height(75),
+                    button(column![
+                        create_img(&format!("delete.png"), image::FilterMethod::Linear)
+                            .height(Length::FillPortion(3)),
+                        text!("Delete")
+                            .height(Length::FillPortion(1))
+                            .width(Length::Fill)
+                            .center()
+                    ])
+                    .on_press(Message::DeleteSave(tar.clone()))
+                    .width(75)
+                    .height(75),
                 )
                 .align_y(iced::Alignment::Center)
                 .spacing(10)
