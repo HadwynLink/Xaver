@@ -1,3 +1,5 @@
+use crate::messages::SaveInfo;
+use memchr::memmem;
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -71,41 +73,46 @@ pub fn read_name(tar: &String) -> String {
 }
 
 // Grabs both name and location in one command.
-pub fn read_info(tar: &String) -> Vec<String> {
-    let output = Command::new("strings") // This can chew up a lot of resources. Need to find a faster way.
-        .arg(tar)
-        .output()
-        .expect("failed to execute process")
-        .stdout;
-
-    let stringout = str::from_utf8(&output).expect("Could not extract string");
-
+pub fn read_info(tar: &String) -> SaveInfo {
     let mut levelraw = String::new();
+    let mut name = String::new();
+
+    let data = std::fs::read(tar).expect("Can't read file!");
+
     if tar.contains("Arena") {
         levelraw = format!("arenahub") // This will always be the case for arena saves
-    }
-    let mut name = String::new();
-    let name_marker = if tar.contains("Arena") {
-        "arenahub"
-    } else {
-        "0a\"A"
-    };
+    } else if let Some(pos) = memmem::find(&data, b"Zoexanima") {
+        let start = pos;
 
-    let mut foundname = false;
-    for line in stringout.lines() {
-        if levelraw.is_empty() || name.is_empty() {
-            if foundname == true && name.is_empty() {
-                name = format!("{}", line);
-            } else if line.contains(name_marker) {
-                foundname = true;
-            } else if line.contains("Zoe") && levelraw.is_empty() {
-                levelraw = format!("{}", line);
-            }
-        } else {
-            break;
+        let mut end = pos;
+        while end < data.len() && data[end].is_ascii_graphic() {
+            end += 1;
         }
+
+        levelraw = format!("{}", String::from_utf8_lossy(&data[start..end]));
     }
 
+    if !tar.contains("Arena") {
+        if let Some(pos) = memmem::find(&data, b"0a\"A") {
+            let start = pos + 24;
+
+            let mut end = pos + 24;
+            while end < data.len() && (0x20..=0x7E).contains(&data[end]) {
+                end += 1;
+            }
+
+            name = format!("{}", String::from_utf8_lossy(&data[start..end]));
+        }
+    } else {
+        let start = 8392;
+
+        let mut end = 8392;
+        while end < data.len() && (0x20..=0x7E).contains(&data[end]) {
+            end += 1;
+        }
+
+        name = format!("{}", String::from_utf8_lossy(&data[start..end]));
+    }
     let level;
     if levelraw.contains("arenahub") {
         level = format!("Arena Hub");
@@ -137,7 +144,11 @@ pub fn read_info(tar: &String) -> Vec<String> {
         level = format!("Unknown Area! Level ID: {}", levelraw);
     }
 
-    vec![name, level]
+    SaveInfo {
+        path: format!("{}", tar),
+        name: name,
+        location: level,
+    }
 }
 
 // Returns the current level the character is on

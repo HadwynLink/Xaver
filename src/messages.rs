@@ -10,9 +10,9 @@ pub enum Message {
     Launch,
     Settings,
     NewSave,
-    OverwriteSave(String),
-    RestoreSave(String),
-    DeleteSave(String),
+    OverwriteSave(usize),
+    RestoreSave(usize),
+    DeleteSave(usize),
     ContentChanged(String),
 }
 
@@ -20,4 +20,10 @@ pub enum Message {
 pub struct Config {
     pub savedir: String,
     pub backupdir: String,
+}
+
+pub struct SaveInfo {
+    pub path: String,
+    pub name: String,
+    pub location: String,
 }

@@ -47,6 +47,8 @@ pub struct FullState {
     charloc: String,      // Location of the character in-game
     newsavename: String,
     defaultsavename: String,
+
+    save_slot_info: Vec<SaveInfo>, // Cache for save information
 }
 
 impl FullState {
@@ -65,6 +67,20 @@ impl FullState {
         let savedir = format!("{}", data.backupdir);
         let saveops = savemanager::compile_saves(&gamedir);
 
+        let mut saveinfo = Vec::new();
+        for save in &saveops {
+            let backups =
+                savemanager::compile_saves(&format!("{}{}", &savedir, save.replace(".rsg", "")));
+            for backup in backups {
+                saveinfo.push(savemanager::read_info(&format!(
+                    "{}{}{}",
+                    &savedir,
+                    save.replace(".rsg", ""),
+                    backup
+                )));
+            }
+        }
+
         Self {
             gamefolder: gamedir.clone(),
             savefolder: savedir.clone(),
@@ -82,6 +98,8 @@ impl FullState {
             backups: Vec::new(),
             newsavename: String::new(),
             defaultsavename: String::new(),
+
+            save_slot_info: saveinfo,
         }
     }
     pub fn update(&mut self, message: Message) {
@@ -133,6 +151,10 @@ impl FullState {
                     &self.selected_path,
                     savename,
                 );
+                self.save_slot_info.push(savemanager::read_info(&format!(
+                    "{}/{}.rsg",
+                    &self.selected_path, savename
+                )));
                 self.newsavename.clear();
                 self.backups = savemanager::compile_saves(&self.selected_path);
                 self.findunusedsavename(self.backups.len() as i64 + 1);
@@ -140,20 +162,21 @@ impl FullState {
             Message::OverwriteSave(tar) => {
                 savemanager::copy_save(
                     &format!("{}{}", self.gamefolder, self.selected_save),
-                    &format!("{}{}", &self.selected_path, tar),
+                    &self.save_slot_info[tar].path,
                 );
                 self.refresh();
             }
             Message::RestoreSave(tar) => {
                 savemanager::copy_save(
-                    &format!("{}{}", &self.selected_path, tar),
+                    &self.save_slot_info[tar].path,
                     &format!("{}{}", self.gamefolder, self.selected_save),
                 );
-                self.refresh();
+                self.update_info().expect("Could not update info");
+                self.refresh()
             }
             Message::DeleteSave(tar) => {
-                fs::remove_file(format!("{}{}", &self.selected_path, tar))
-                    .expect("Couldn't delete save!");
+                fs::remove_file(&self.save_slot_info[tar].path).expect("Couldn't delete save!");
+                self.save_slot_info.remove(tar);
                 self.refresh();
                 self.findunusedsavename(self.backups.len() as i64 + 1);
             }
@@ -241,8 +264,8 @@ impl FullState {
                 self.gametype = format!("Campaign");
             }
             let save_info = savemanager::read_info(&fullpath);
-            self.charname = format!("{}", save_info[0]);
-            self.charloc = format!("{}", save_info[1]);
+            self.charname = format!("{}", save_info.name);
+            self.charloc = format!("{}", save_info.location);
         }
         Ok(())
     }
@@ -276,25 +299,33 @@ impl FullState {
         .padding(5)
         .spacing(10);
         let mut scrollarea = column![].spacing(10);
-        for save in &self.backups {
-            scrollarea = scrollarea.push(self.save_slot(&save));
+        for save in &self.save_slot_info {
+            if save.path.contains(&self.selected_path) {
+                scrollarea = scrollarea.push(self.save_slot(&save));
+            }
         }
         let scroll = scrollable(scrollarea);
         screening = screening.push(scroll);
         screening
     }
 
-    fn save_slot(&self, tar: &String) -> Column<'_, Message> {
-        let meta = fs::metadata(format!("{}{}", &self.selected_path, &tar)).unwrap();
+    fn save_slot(&self, info: &SaveInfo) -> Column<'_, Message> {
+        let meta = fs::metadata(&info.path).unwrap();
         let time_saved: DateTime<Local> =
             meta.modified().expect("Couldn't find creation date").into();
         let file_size: f64 = (meta.size() as f64) / 1000000.0;
-        let save_info = savemanager::read_info(&format!("{}{}", &self.selected_path, &tar));
         column![
             container(
                 row!(
                     column!(
-                        text!("{}", tar.replace(".rsg", "").replace("/", "")).size(20),
+                        text!(
+                            "{}",
+                            info.path
+                                .replace(&self.selected_path, "")
+                                .replace(".rsg", "")
+                                .replace("/", "")
+                        )
+                        .size(20),
                         text!("{:.2} MB", file_size)
                             .size(15)
                             .color(color!(150, 150, 150))
@@ -302,12 +333,12 @@ impl FullState {
                     .width(220),
                     rule::vertical(2),
                     column![
-                        text!("Name: {}", save_info[0])
+                        text!("Name: {}", &info.name)
                             .height(20)
                             .center()
                             .width(Length::Fill),
                         rule::horizontal(2),
-                        text!("Location: {}", save_info[1])
+                        text!("Location: {}", &info.location)
                             .height(Length::Fill)
                             .center()
                             .width(Length::Fill)
@@ -327,7 +358,12 @@ impl FullState {
                             .width(Length::Fill)
                             .center()
                     ])
-                    .on_press(Message::OverwriteSave(tar.clone()))
+                    .on_press(Message::OverwriteSave(
+                        self.save_slot_info
+                            .iter()
+                            .position(|r| r.path == info.path)
+                            .unwrap()
+                    ))
                     .width(75)
                     .height(75),
                     button(column![
@@ -338,7 +374,12 @@ impl FullState {
                             .width(Length::Fill)
                             .center()
                     ])
-                    .on_press(Message::RestoreSave(tar.clone()))
+                    .on_press(Message::RestoreSave(
+                        self.save_slot_info
+                            .iter()
+                            .position(|r| r.path == info.path)
+                            .unwrap()
+                    ))
                     .width(75)
                     .height(75),
                     button(column![
@@ -349,7 +390,12 @@ impl FullState {
                             .width(Length::Fill)
                             .center()
                     ])
-                    .on_press(Message::DeleteSave(tar.clone()))
+                    .on_press(Message::DeleteSave(
+                        self.save_slot_info
+                            .iter()
+                            .position(|r| r.path == info.path)
+                            .unwrap()
+                    ))
                     .width(75)
                     .height(75),
                 )
