@@ -1,8 +1,6 @@
 use crate::messages::SaveInfo;
 use memchr::memmem;
 use std::fs;
-use std::fs::File;
-use std::io::{BufReader, Read};
 use std::process::Command;
 use std::str;
 
@@ -21,13 +19,6 @@ pub fn compile_saves(from: &String) -> Vec<String> {
 }
 
 // Lists the .rsg files in a directory
-pub fn list_files(list: &Vec<String>) {
-    let mut i = 1;
-    for save in list {
-        println!("{}: {}", i, save.replace(".rsg", ""));
-        i += 1;
-    }
-}
 
 // Creates a new save, making a new directory for it if it doesn't exist
 pub fn new_save(from: &String, savedir: &String, savename: &String) {
@@ -120,7 +111,7 @@ pub fn read_info(tar: &String) -> SaveInfo {
         level = format!("Level 1");
     } else if levelraw.contains("02") {
         level = format!("Level 2");
-    } else if levelraw.contains("c1") {
+    } else if levelraw.contains("exanimac1") {
         level = format!("Level 2.5\n(The Catacombs)");
     } else if levelraw.contains("03") {
         level = format!("Level 3");
@@ -138,6 +129,8 @@ pub fn read_info(tar: &String) -> SaveInfo {
         level = format!("Level 7\n(The Market)");
     } else if levelraw.contains("08") {
         level = format!("Level 8\n(The Gentry)");
+    } else if levelraw.contains("67_c1") {
+        level = format!("Level 9.5\n(The Garden Crypts)");
     } else if levelraw.contains("67") {
         level = format!("Level 9\n(The Gardens)");
     } else {
@@ -149,65 +142,6 @@ pub fn read_info(tar: &String) -> SaveInfo {
         name: name,
         location: level,
     }
-}
-
-// Returns the current level the character is on
-pub fn read_level(tar: &String) -> String {
-    let mut text = String::new();
-    if tar.contains("Arena") {
-        text = format!("arenahub"); // This will always be the case for the arena
-    } else {
-        let output = Command::new("strings")
-            .arg(tar)
-            .output()
-            .expect("failed to execute process")
-            .stdout;
-
-        let stringout = str::from_utf8(&output).expect("Could not extract string");
-
-        for line in stringout.lines() {
-            // The first instance of this key seems to be the right one
-            if line.contains("Zoe") {
-                text = format!("{}", line);
-                break;
-            }
-        }
-    }
-
-    let mut answer = String::new();
-    // This is a *nasty* if-else loop. Very icky. No good.
-    // I could probably do this much better with a dictionary but I would need to clean the text better first...
-    if text.contains("arenahub") {
-        answer = format!("Arena Hub");
-    } else if text.contains("01") {
-        answer = format!("Level 1");
-    } else if text.contains("02") {
-        answer = format!("Level 2");
-    } else if text.contains("c1") {
-        answer = format!("Level 2.5\n(The Catacombs)");
-    } else if text.contains("03") {
-        answer = format!("Level 3");
-    } else if text.contains("04") {
-        answer = format!("Level 4\n(The Archives)");
-    } else if text.contains("05_sw") {
-        answer = format!("Level 5.5\n(The Crossroads Sewers)");
-    } else if text.contains("05") {
-        answer = format!("Level 5\n(The Crossroads)");
-    } else if text.contains("06") {
-        answer = format!("Level 6\n(The Forge)");
-    } else if text.contains("07_sw") {
-        answer = format!("Level 7.5\n(The Market Sewers)");
-    } else if text.contains("07") {
-        answer = format!("Level 7\n(The Market)");
-    } else if text.contains("08") {
-        answer = format!("Level 8\n(The Gentry)");
-    } else if text.contains("67") {
-        answer = format!("Level 9\n(The Gardens)");
-    } else {
-        answer = format!("Unknown Area! Level ID: {}", text);
-    }
-
-    answer
 }
 
 // Generates fancy labels for saves instead of raw file names

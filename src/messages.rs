@@ -1,10 +1,7 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Save,
-    Load,
-    Checkpoint,
     SaveSelected(String),
     Refresh,
     Launch,
@@ -14,9 +11,14 @@ pub enum Message {
     RestoreSave(usize),
     DeleteSave(usize),
     ContentChanged(String),
+
+    OpenFolder(i32),
+    FolderCanceled,
+    FolderSelected(i32, String),
+    ApplyFolder,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub savedir: String,
     pub backupdir: String,

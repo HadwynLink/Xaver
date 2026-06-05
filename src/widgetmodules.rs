@@ -2,13 +2,12 @@ use crate::messages::*;
 use crate::savemanager;
 use chrono::{DateTime, Local};
 use iced::{
-    Length, color,
+    Length, Task, color,
     widget::{
         Column, Container, button, center_x, column, container, image, pick_list, row, rule,
         scrollable, text, text_input,
     },
 };
-
 use std::env;
 use std::f64;
 use std::fs;
@@ -29,6 +28,7 @@ fn create_img<'a>(path: &String, filter_method: image::FilterMethod) -> Containe
 
 pub struct FullState {
     // 'global' variables: extremely useful
+    cfg_path: String,
     gamefolder: String, // Folder with active saves
     savefolder: String, // Folder with saves
 
@@ -39,6 +39,7 @@ pub struct FullState {
     selected_save: String,         // Selected save
     selected_path: String,
     backups: Vec<String>, // List of backups for the selected save
+    showsettings: bool,
 
     // Variables for save info
     created_date: String, // Date selected file was created
@@ -49,6 +50,9 @@ pub struct FullState {
     defaultsavename: String,
 
     save_slot_info: Vec<SaveInfo>, // Cache for save information
+
+    potgamefolder: String,
+    potsavefolder: String,
 }
 
 impl FullState {
@@ -59,7 +63,8 @@ impl FullState {
                 .expect("could not find current directory")
                 .display()
         );
-        let config = fs::read_to_string(cfgpath).expect("Config error: could not find config.json");
+        let config =
+            fs::read_to_string(&cfgpath).expect("Config error: could not find config.json");
         let data: Config =
             serde_json::from_str(&config).expect("Config error: could not parse file");
 
@@ -69,19 +74,25 @@ impl FullState {
 
         let mut saveinfo = Vec::new();
         for save in &saveops {
-            let backups =
-                savemanager::compile_saves(&format!("{}{}", &savedir, save.replace(".rsg", "")));
-            for backup in backups {
-                saveinfo.push(savemanager::read_info(&format!(
-                    "{}{}{}",
+            if fs::metadata(format!("{}/{}", &savedir, save.replace(".rsg", ""))).is_ok() {
+                let backups = savemanager::compile_saves(&format!(
+                    "{}/{}",
                     &savedir,
-                    save.replace(".rsg", ""),
-                    backup
-                )));
+                    save.replace(".rsg", "")
+                ));
+                for backup in backups {
+                    saveinfo.push(savemanager::read_info(&format!(
+                        "{}/{}{}",
+                        &savedir,
+                        save.replace(".rsg", ""),
+                        backup
+                    )));
+                }
             }
         }
 
         Self {
+            cfg_path: cfgpath,
             gamefolder: gamedir.clone(),
             savefolder: savedir.clone(),
 
@@ -100,9 +111,12 @@ impl FullState {
             defaultsavename: String::new(),
 
             save_slot_info: saveinfo,
+            showsettings: false,
+            potgamefolder: String::new(),
+            potsavefolder: String::new(),
         }
     }
-    pub fn update(&mut self, message: Message) {
+    pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::SaveSelected(option) => {
                 self.selected_disp = Some(option);
@@ -116,7 +130,7 @@ impl FullState {
                     self.update_info()
                         .expect("Couldn't update save information");
                     self.selected_path = format!(
-                        "{}{}",
+                        "{}/{}",
                         self.savefolder,
                         self.selected_save.replace(".rsg", "")
                     );
@@ -129,16 +143,19 @@ impl FullState {
                     self.selected_save = String::new();
                 }
                 self.findunusedsavename(self.backups.len() as i64 + 1);
+                Task::none()
             }
             Message::Refresh => {
                 self.refresh();
                 self.findunusedsavename(self.backups.len() as i64 + 1);
+                Task::none()
             }
             Message::Launch => {
                 Command::new("xdg-open")
                     .arg("steam://run/362490")
                     .spawn()
                     .unwrap();
+                Task::none()
             }
             Message::NewSave => {
                 let savename = if self.newsavename != "" {
@@ -158,6 +175,7 @@ impl FullState {
                 self.newsavename.clear();
                 self.backups = savemanager::compile_saves(&self.selected_path);
                 self.findunusedsavename(self.backups.len() as i64 + 1);
+                Task::none()
             }
             Message::OverwriteSave(tar) => {
                 savemanager::copy_save(
@@ -165,6 +183,7 @@ impl FullState {
                     &self.save_slot_info[tar].path,
                 );
                 self.refresh();
+                Task::none()
             }
             Message::RestoreSave(tar) => {
                 savemanager::copy_save(
@@ -172,21 +191,173 @@ impl FullState {
                     &format!("{}{}", self.gamefolder, self.selected_save),
                 );
                 self.update_info().expect("Could not update info");
-                self.refresh()
+                self.refresh();
+                Task::none()
             }
             Message::DeleteSave(tar) => {
                 fs::remove_file(&self.save_slot_info[tar].path).expect("Couldn't delete save!");
                 self.save_slot_info.remove(tar);
                 self.refresh();
                 self.findunusedsavename(self.backups.len() as i64 + 1);
+                Task::none()
             }
             Message::ContentChanged(savename) => {
                 self.newsavename = savename;
+                Task::none()
             }
-            _ => {}
+            Message::Settings => {
+                self.showsettings = !self.showsettings;
+                Task::none()
+            }
+            Message::OpenFolder(foldertype) => self.open_folder(foldertype),
+            Message::FolderSelected(folder_type, path) => {
+                if folder_type == 0 {
+                    self.potgamefolder = path;
+                } else if folder_type == 1 {
+                    self.potsavefolder = path;
+                }
+                Task::none()
+            }
+            Message::ApplyFolder => {
+                let mut change = false;
+                if !self.potgamefolder.is_empty() {
+                    change = true;
+                    let contents =
+                        fs::read_to_string(&self.cfg_path).expect("Could not grab contents");
+                    let mut json: Config =
+                        serde_json::from_str(&contents).expect("could not parse contents");
+                    json.savedir = format!("{}", &self.potgamefolder);
+                    fs::write(
+                        &self.cfg_path,
+                        serde_json::to_string_pretty(&json).expect("Couldn't translate config"),
+                    )
+                    .expect("Couldn't write to config");
+                }
+                if !self.potsavefolder.is_empty() {
+                    change = true;
+                    let contents =
+                        fs::read_to_string(&self.cfg_path).expect("Could not grab contents");
+                    let mut json: Config =
+                        serde_json::from_str(&contents).expect("could not parse contents");
+                    json.backupdir = format!("{}", &self.potsavefolder);
+                    fs::write(
+                        &self.cfg_path,
+                        serde_json::to_string_pretty(&json).expect("Couldn't translate config"),
+                    )
+                    .expect("Couldn't write to config");
+                }
+                if change {
+                    self.refresh_folders();
+                }
+                Task::none()
+            }
+            _ => Task::none(),
         }
     }
     pub fn view(&self) -> Column<'_, Message> {
+        if self.showsettings {
+            self.settings_ui()
+        } else {
+            self.save_ui()
+        }
+    }
+
+    fn refresh_folders(&mut self) {
+        let config =
+            fs::read_to_string(&self.cfg_path).expect("Config error: could not find config.json");
+        let data: Config =
+            serde_json::from_str(&config).expect("Config error: could not parse file");
+
+        self.gamefolder = format!("{}", data.savedir);
+        self.selected_disp = None;
+        self.savefolder = format!("{}", data.backupdir);
+        let saveops = savemanager::compile_saves(&self.gamefolder);
+        self.selected_save.clear();
+        self.selected_path = format!(
+            "{}/{}",
+            self.savefolder,
+            self.selected_save.replace(".rsg", "")
+        );
+
+        self.save_slot_info = Vec::new();
+        for save in &saveops {
+            if fs::metadata(format!("{}/{}", &self.savefolder, save.replace(".rsg", ""))).is_ok() {
+                let backups = savemanager::compile_saves(&format!(
+                    "{}/{}",
+                    &self.savefolder,
+                    save.replace(".rsg", "")
+                ));
+                for backup in backups {
+                    self.save_slot_info.push(savemanager::read_info(&format!(
+                        "{}/{}{}",
+                        &self.savefolder,
+                        save.replace(".rsg", ""),
+                        backup
+                    )));
+                }
+            }
+        }
+        self.refresh();
+    }
+
+    fn open_folder(&self, folder_type: i32) -> Task<Message> {
+        Task::future(
+            rfd::AsyncFileDialog::new().pick_folder(), // <-- Launch the dialog window.
+        )
+        .then(move |handle| match handle {
+            Some(folder_handle) => {
+                let path = folder_handle.path().display().to_string();
+
+                Task::done(Message::FolderSelected(folder_type, path))
+            }
+            None => Task::done(Message::FolderCanceled),
+        })
+    }
+
+    fn settings_ui(&self) -> Column<'_, Message> {
+        let mut screening: Column<'_, Message> = column!(
+            create_img(&format!("Banner.png"), image::FilterMethod::Linear).width(Length::Fill),
+        )
+        .spacing(10);
+        screening = screening.push(
+            column![
+                text!("Settings").width(Length::Fill).center().size(30),
+                rule::horizontal(2),
+                button(text!("Back").width(Length::Fill).center())
+                    .on_press(Message::Settings)
+                    .width(Length::Fill),
+                row![
+                    text!("Game Folder:").height(30).center(),
+                    text_input(&self.gamefolder, &self.potgamefolder).size(15),
+                    button(
+                        create_img(&format!("folder.png"), image::FilterMethod::Linear).width(25)
+                    )
+                    .style(button::text)
+                    .height(30)
+                    .on_press(Message::OpenFolder(0)),
+                    button("Apply").height(30).on_press(Message::ApplyFolder),
+                ],
+                row![
+                    text!("Save Folder:").height(30).center(),
+                    text_input(&self.savefolder, &self.potsavefolder).size(15),
+                    button(
+                        create_img(&format!("folder.png"), image::FilterMethod::Linear).width(25)
+                    )
+                    .style(button::text)
+                    .height(30)
+                    .on_press(Message::OpenFolder(1)),
+                    button("Apply").height(30).on_press(Message::ApplyFolder),
+                ]
+                .spacing(5),
+            ]
+            .padding(5)
+            .spacing(10),
+        );
+
+        screening
+    }
+
+    fn save_ui(&self) -> Column<'_, Message> {
         let mut screening: Column<'_, Message> = column!(
             create_img(&format!("Banner.png"), image::FilterMethod::Linear).width(Length::Fill),
             self.save_selector()
@@ -216,6 +387,7 @@ impl FullState {
     fn refresh(&mut self) {
         self.saves = savemanager::compile_saves(&self.gamefolder);
         self.backups = savemanager::compile_saves(&self.selected_path);
+        self.savedisp = savemanager::generate_save_display(&self.gamefolder, &self.saves);
     }
 
     // Display code for save selector
