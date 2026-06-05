@@ -84,15 +84,24 @@ pub fn read_info(tar: &String) -> SaveInfo {
     }
 
     if !tar.contains("Arena") {
-        if let Some(pos) = memmem::find(&data, b"0a\"A") {
-            let start = pos + 24;
+        let pattern = [0xC0, 0xA8, 0x6B, 0x11, 0x00, 0x00]; // For finding the player data
+        let pattern2 = [0x07, 0xAC, 0xCD, 0x00]; // For finding the name specifically
+        if let Some(pos) = memmem::find(&data, &pattern) {
+            println!("Found it!");
+            if let Some(pos2) = memmem::find(&data[pos..], &pattern2) {
+                let mut start = pos + pos2 + 8;
+                while start < data.len() && !(0x20..=0x7E).contains(&data[start]) {
+                    println!("Moving forward");
+                    start += 1;
+                }
+                let mut end = start;
+                while end < data.len() && (0x20..=0x7E).contains(&data[end]) {
+                    println!("Moving forward more");
+                    end += 1;
+                }
 
-            let mut end = pos + 24;
-            while end < data.len() && (0x20..=0x7E).contains(&data[end]) {
-                end += 1;
+                name = format!("{}", String::from_utf8_lossy(&data[start..end]));
             }
-
-            name = format!("{}", String::from_utf8_lossy(&data[start..end]));
         }
     } else {
         let start = 8392;
