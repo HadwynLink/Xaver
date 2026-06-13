@@ -11,7 +11,7 @@ pub enum Message {
     RestoreSave(usize),
     DeleteSave(usize),
     ContentChanged(String),
-
+    MessageClosed,
     OpenFolder(i32),
     FolderCanceled,
     FolderSelected(i32, String),

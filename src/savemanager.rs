@@ -1,76 +1,90 @@
 use crate::messages::SaveInfo;
 use memchr::memmem;
-use std::fs;
-use std::process::Command;
-use std::str;
+use std::{fs, io::Error};
 
 // load saves into data structure to call on later
-pub fn compile_saves(from: &String) -> Vec<String> {
+pub fn compile_saves(from: &String) -> Result<Vec<String>, Error> {
     let mut saves: Vec<String> = Vec::new();
-    let paths = fs::read_dir(from).unwrap();
+    let paths = fs::read_dir(from)?;
     for path in paths {
-        let fname: String = format!("{}", path.unwrap().path().display());
+        let fname: String = format!("{}", path?.path().display());
         if fname.contains(".rsg") {
-            let fpruned: String = fname.replace(from.as_str(), "");
+            let fpruned: String = fname.replace(from.as_str(), "").replace("/", "");
             saves.push(fpruned);
         }
     }
-    return saves;
+    Ok(saves)
 }
 
 // Lists the .rsg files in a directory
 
 // Creates a new save, making a new directory for it if it doesn't exist
-pub fn new_save(from: &String, savedir: &String, savename: &String) {
-    fs::create_dir_all(savedir).expect("Could not create directory");
-    fs::copy(from, format!("{}/{}.rsg", savedir, savename)).expect("File could not copy!");
+pub fn new_save(from: &String, savedir: &String, savename: &String) -> Result<(), Error> {
+    fs::create_dir_all(savedir)?;
+    fs::copy(from, format!("{}/{}.rsg", savedir, savename))?;
+    Ok(())
 }
 
 // Copies a given save file into the backups folder
-pub fn copy_save(from: &String, to: &String) {
-    fs::copy(from, to).expect("File could not copy!");
+pub fn copy_save(from: &String, to: &String) -> Result<(), Error> {
+    fs::copy(from, to)?;
+    Ok(())
 }
 
 // Outputs the name of the character in the file
-pub fn read_name(tar: &String) -> String {
-    let output = Command::new("strings") // This can chew up a lot of resources. Need to find a faster way.
-        .arg(tar)
-        .output()
-        .expect("failed to execute process")
-        .stdout;
-
-    let stringout = str::from_utf8(&output).expect("Could not extract string");
-
-    let mut foundname = false;
+pub fn read_name(tar: &String) -> Result<String, Error> {
     let mut name = String::new();
 
-    let name_marker = if tar.contains("Arena") {
-        "arenahub"
-    } else {
-        "0a\"A"
-    };
+    let data = std::fs::read(tar)?;
 
-    for line in stringout.lines() {
-        if foundname == true {
-            name = format!("{}", line);
-            break;
-        } else {
-            if line.contains(name_marker) {
-                foundname = true;
+    let mut isarena = false;
+    if memmem::find(&data[0..500], b"arenahub") != None {
+            isarena = true;
+    }
+
+    if !isarena {
+        let pattern = [0xC0, 0xA8, 0x6B, 0x11, 0x00, 0x00]; // For finding the player data
+        let pattern2 = [0x07, 0xAC, 0xCD, 0x00]; // For finding the name specifically
+        if let Some(pos) = memmem::find(&data, &pattern) {
+            if let Some(pos2) = memmem::find(&data[pos..], &pattern2) {
+                let mut start = pos + pos2 + 8;
+                while start < data.len() && !(0x20..=0x7E).contains(&data[start]) {
+                    start += 1;
+                }
+                let mut end = start;
+                while end < data.len() && (0x20..=0x7E).contains(&data[end]) {
+                    end += 1;
+                }
+
+                name = format!("{}", String::from_utf8_lossy(&data[start..end]));
             }
         }
+    } else {
+        let start = 8392;
+
+        let mut end = 8392;
+        while end < data.len() && (0x20..=0x7E).contains(&data[end]) {
+            end += 1;
+        }
+
+        name = format!("{}", String::from_utf8_lossy(&data[start..end]));
     }
-    name
+    Ok(name)
 }
 
 // Grabs both name and location in one command.
-pub fn read_info(tar: &String) -> SaveInfo {
+pub fn read_info(tar: &String) -> Result<SaveInfo, Error> {
     let mut levelraw = String::new();
     let mut name = String::new();
 
-    let data = std::fs::read(tar).expect("Can't read file!");
+    let data = std::fs::read(tar)?;
 
-    if tar.contains("Arena") {
+    let mut isarena = false;
+    if memmem::find(&data[0..500], b"arenahub") != None {
+            isarena = true;
+    }
+
+    if isarena {
         levelraw = format!("arenahub") // This will always be the case for arena saves
     } else if let Some(pos) = memmem::find(&data, b"Zoexanima") {
         let start = pos;
@@ -83,20 +97,17 @@ pub fn read_info(tar: &String) -> SaveInfo {
         levelraw = format!("{}", String::from_utf8_lossy(&data[start..end]));
     }
 
-    if !tar.contains("Arena") {
+    if !isarena {
         let pattern = [0xC0, 0xA8, 0x6B, 0x11, 0x00, 0x00]; // For finding the player data
         let pattern2 = [0x07, 0xAC, 0xCD, 0x00]; // For finding the name specifically
         if let Some(pos) = memmem::find(&data, &pattern) {
-            println!("Found it!");
             if let Some(pos2) = memmem::find(&data[pos..], &pattern2) {
                 let mut start = pos + pos2 + 8;
                 while start < data.len() && !(0x20..=0x7E).contains(&data[start]) {
-                    println!("Moving forward");
                     start += 1;
                 }
                 let mut end = start;
                 while end < data.len() && (0x20..=0x7E).contains(&data[end]) {
-                    println!("Moving forward more");
                     end += 1;
                 }
 
@@ -146,15 +157,15 @@ pub fn read_info(tar: &String) -> SaveInfo {
         level = format!("Unknown Area! Level ID: {}", levelraw);
     }
 
-    SaveInfo {
+    Ok(SaveInfo {
         path: format!("{}", tar),
         name: name,
         location: level,
-    }
+    })
 }
 
 // Generates fancy labels for saves instead of raw file names
-pub fn generate_save_display(at: &String, saves: &Vec<String>) -> Vec<String> {
+pub fn generate_save_display(at: &String, saves: &Vec<String>) -> Result<Vec<String>, Error> {
     let mut savedisps = Vec::new();
 
     for save in saves {
@@ -170,9 +181,9 @@ pub fn generate_save_display(at: &String, saves: &Vec<String>) -> Vec<String> {
                 save.replace("Exanima", "").replace(".rsg", "")
             ));
         }
-        save_display.push_str(&format!("({})", read_name(&format!("{}{}", at, save))));
+        save_display.push_str(&format!("({})", read_name(&format!("{}/{}", at, save))?));
         savedisps.push(save_display);
     }
 
-    savedisps
+    Ok(savedisps)
 }
