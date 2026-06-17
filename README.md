@@ -1,5 +1,5 @@
 # Xaver
-This tool attempts to implement saving and loading as a tool for Exanima, and was inspired by the Salvus save manager tool by steam user Silk, a link to which you can find at (https://steamcommunity.com/app/362490/discussions/0/4032473829604421294/).
+This tool attempts to implement saving and loading as a tool for Exanima, and was inspired by the Salvus save manager tool by steam user Silk, a link to which you can find at (https://steamcommunity.com/app/362490/discussions/0/4032473829604421294/). **As of now, Xaver is in the testing phase, and does not have guardrails on functions like deleting saves.**
 
 <img width="1025" height="766" alt="Screenshot_20260617_133828" src="https://github.com/user-attachments/assets/17ba13c7-63ac-4cfa-adfb-405a207b3387" />
 
@@ -10,6 +10,7 @@ Along with being able to make and restore backup saves for each save you have in
 * Level the character is on
 * Time the save file was last modified
 * Size of the file (Save sizes can range from a couple of Megabytes in the early game to around 26 Megabytes in the late game)
+Additionally, you can launch Exanima directly from the tool!
 
 ## Installation
 To install from releases, simply download the .zip file, extract, and run Xaver. Then select your preferred save and game folders in the settings.
