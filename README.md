@@ -1,6 +1,7 @@
 # Xaver
-This tool attempts to implement saving and loading as a tool for Exanima, and was inspired by the Salvus save manager tool by steam user Silk, a link to which you can find at (https://steamcommunity.com/app/362490/discussions/0/4032473829604421294/). **As of now, Xaver is in the testing phase, and does not have guardrails on functions like deleting saves! Keep that in mind if you choose to use this tool.**
-If you have any issues with this tool, please report it in the issues tab and I will fix it in the next release.
+This tool attempts to implement saving and loading as a tool for Exanima, and was inspired by the Salvus save manager tool by steam user Silk, a link to which you can find at (https://steamcommunity.com/app/362490/discussions/0/4032473829604421294/). 
+**WARNING: As of now, Xaver is still in the testing phase! It will not try to stop you if you accidentally delete or overwrite your save! Keep that in mind if you choose to use this tool.**
+If you have any issues, please report it in the issues tab and I will try to fix it by the next release.
 
 <img width="1025" height="766" alt="Screenshot_20260617_133828" src="https://github.com/user-attachments/assets/17ba13c7-63ac-4cfa-adfb-405a207b3387" />
 
