@@ -1,22 +1,109 @@
-use crate::messages::SaveInfo;
+// Defines functions for working with saves
+use chrono::{DateTime, Local};
 use memchr::memmem;
-use std::{fs, io::Error};
+use std::{collections::HashMap, fmt, fs, io::Error, os::unix::fs::MetadataExt, sync::LazyLock};
 
-// load saves into data structure to call on later
-pub fn compile_saves(from: &String) -> Result<Vec<String>, Error> {
-    let mut saves: Vec<String> = Vec::new();
+// Dictionary to store names of levels
+static LEVEL_DICT: LazyLock<HashMap<&'static str, &str>> = LazyLock::new(|| {
+    HashMap::from([
+        ("arenahub", "Arena Hub"),
+        ("Zoexanima01", "Level 1"),
+        ("Zoexanima02", "Level 2"),
+        ("Zoexanimac1", "Level 2.5\n(The Catacombs)"),
+        ("Zoexanima03", "Level 3"),
+        ("Zoexanima04", "Level 4\n(The Archives)"),
+        ("Zoexanima05", "Level 5\n(The Crossroads)"),
+        ("Zoexanima05_sw", "Level 5.5\n(The Crossroads Sewers)"),
+        ("Zoexanima06", "Level 6\n(The Golem Forge)"),
+        ("Zoexanima07", "Level 7\n(The Market)"),
+        ("Zoexanima07_sw", "Level 7.5\n(The Market Sewers)"),
+        ("Zoexanima08", "Level 8\n(The Gentry)"),
+        ("Zoexanima67", "Level 9\n(The Gardens)"),
+        ("Zoexanima67_c1", "Level 9.5\n(The Garden Crypts)"),
+    ])
+});
+
+// Data structure for save information
+#[derive(Debug, Default, Clone)]
+pub struct SaveInfo {
+    pub path: String,                   // Save file location
+    pub save_type: i32,                 // Save file type: Campaign(0) vs Arena(1)
+    pub created_date: DateTime<Local>,  // Date the save was created
+    pub modified_date: DateTime<Local>, // Date the save was last modified
+    pub file_size: f64,                 // Size of the file (MB)
+    pub name: String,                   // Name of the character
+    pub level: String,                  // Location of the character
+}
+
+impl PartialEq for SaveInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path
+    }
+}
+
+impl fmt::Display for SaveInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut display_name = String::new();
+        match self.save_type {
+            0 => {
+                if let Some((_, fname)) = self.path.rsplit_once('/') {
+                    display_name.push_str(&format!(
+                        "Campaign Save {}: {}",
+                        fname.replace(".rsg", "").replace("Exanima", ""),
+                        self.name
+                    ));
+                    if self.created_date != DateTime::<Local>::default() {
+                        display_name.push_str(&format!(
+                            " (Created {})",
+                            self.created_date.format("%m/%d/%Y")
+                        ))
+                    } else {
+                        display_name.push_str(&format!(" (Unknown Creation Date)"))
+                    }
+                } else {
+                    display_name.push_str("Unreadable Campaign Save");
+                }
+            }
+            1 => {
+                if let Some((_, fname)) = self.path.rsplit_once('/') {
+                    display_name.push_str(&format!(
+                        "Arena Save {}: {}",
+                        fname.replace(".rsg", "").replace("Arena", ""),
+                        self.name
+                    ));
+                    if self.created_date != DateTime::<Local>::default() {
+                        display_name.push_str(&format!(
+                            " (Created {})",
+                            self.created_date.format("%m/%d/%Y")
+                        ))
+                    } else {
+                        display_name.push_str(&format!(" (Unknown Creation Date)"))
+                    }
+                } else {
+                    display_name.push_str("Unreadable Arena Save");
+                }
+            }
+            _ => {
+                display_name.push_str("Unknown Save Type");
+            }
+        }
+        write!(f, "{}", display_name)
+    }
+}
+
+// Compiles a list of save information
+pub fn compile_info(from: &String) -> Result<Vec<SaveInfo>, Error> {
+    let mut saves: Vec<SaveInfo> = Vec::new();
     let paths = fs::read_dir(from)?;
     for path in paths {
         let fname: String = format!("{}", path?.path().display());
         if fname.contains(".rsg") {
-            let fpruned: String = fname.replace(from.as_str(), "").replace("/", "");
+            let fpruned: SaveInfo = read_info(&fname)?;
             saves.push(fpruned);
         }
     }
     Ok(saves)
 }
-
-// Lists the .rsg files in a directory
 
 // Creates a new save, making a new directory for it if it doesn't exist
 pub fn new_save(from: &String, savedir: &String, savename: &String) -> Result<(), Error> {
@@ -31,61 +118,39 @@ pub fn copy_save(from: &String, to: &String) -> Result<(), Error> {
     Ok(())
 }
 
-// Outputs the name of the character in the file
-pub fn read_name(tar: &String) -> Result<String, Error> {
-    let mut name = String::new();
-
-    let data = std::fs::read(tar)?;
-
-    let mut isarena = false;
-    if memmem::find(&data[0..500], b"arenahub") != None {
-            isarena = true;
-    }
-
-    if !isarena {
-        let pattern = [0xC0, 0xA8, 0x6B, 0x11, 0x00, 0x00]; // For finding the player data
-        let pattern2 = [0x07, 0xAC, 0xCD, 0x00]; // For finding the name specifically
-        if let Some(pos) = memmem::find(&data, &pattern) {
-            if let Some(pos2) = memmem::find(&data[pos..], &pattern2) {
-                let mut start = pos + pos2 + 8;
-                while start < data.len() && !(0x20..=0x7E).contains(&data[start]) {
-                    start += 1;
-                }
-                let mut end = start;
-                while end < data.len() && (0x20..=0x7E).contains(&data[end]) {
-                    end += 1;
-                }
-
-                name = format!("{}", String::from_utf8_lossy(&data[start..end]));
-            }
-        }
-    } else {
-        let start = 8392;
-
-        let mut end = 8392;
-        while end < data.len() && (0x20..=0x7E).contains(&data[end]) {
-            end += 1;
-        }
-
-        name = format!("{}", String::from_utf8_lossy(&data[start..end]));
-    }
-    Ok(name)
-}
-
-// Grabs both name and location in one command.
+// Returns relevant information of a target save.
 pub fn read_info(tar: &String) -> Result<SaveInfo, Error> {
-    let mut levelraw = String::new();
-    let mut name = String::new();
+    let mut info = SaveInfo::default();
+    info.path = tar.to_string();
 
+    match fs::metadata(tar) {
+        Ok(metadata) => {
+            match metadata.created() {
+                Ok(date) => {
+                    info.created_date = date.into();
+                }
+                Err(_) => {}
+            };
+            match metadata.modified() {
+                Ok(date) => {
+                    info.modified_date = date.into();
+                }
+                Err(_) => {}
+            }
+            info.file_size = (metadata.size() as f64) / 1000000.0;
+        }
+        Err(_) => {}
+    };
+
+    let mut levelraw = String::new();
     let data = std::fs::read(tar)?;
 
-    let mut isarena = false;
     if memmem::find(&data[0..500], b"arenahub") != None {
-            isarena = true;
+        info.save_type = 1;
     }
 
-    if isarena {
-        levelraw = format!("arenahub") // This will always be the case for arena saves
+    if info.save_type == 1 {
+        levelraw = "arenahub".to_string(); // This will always be the case for arena saves
     } else if let Some(pos) = memmem::find(&data, b"Zoexanima") {
         let start = pos;
 
@@ -93,15 +158,14 @@ pub fn read_info(tar: &String) -> Result<SaveInfo, Error> {
         while end < data.len() && data[end].is_ascii_graphic() {
             end += 1;
         }
-
         levelraw = format!("{}", String::from_utf8_lossy(&data[start..end]));
     }
 
-    if !isarena {
-        let pattern = [0xC0, 0xA8, 0x6B, 0x11, 0x00, 0x00]; // For finding the player data
-        let pattern2 = [0x07, 0xAC, 0xCD, 0x00]; // For finding the name specifically
-        if let Some(pos) = memmem::find(&data, &pattern) {
-            if let Some(pos2) = memmem::find(&data[pos..], &pattern2) {
+    if info.save_type == 0 {
+        let player_pattern = [0xC0, 0xA8, 0x6B, 0x11, 0x00, 0x00]; // For finding the player data
+        let name_pattern = [0x07, 0xAC, 0xCD, 0x00]; // For finding the name specifically
+        if let Some(pos) = memmem::find(&data, &player_pattern) {
+            if let Some(pos2) = memmem::find(&data[pos..], &name_pattern) {
                 let mut start = pos + pos2 + 8;
                 while start < data.len() && !(0x20..=0x7E).contains(&data[start]) {
                     start += 1;
@@ -111,7 +175,7 @@ pub fn read_info(tar: &String) -> Result<SaveInfo, Error> {
                     end += 1;
                 }
 
-                name = format!("{}", String::from_utf8_lossy(&data[start..end]));
+                info.name = format!("{}", String::from_utf8_lossy(&data[start..end]));
             }
         }
     } else {
@@ -122,68 +186,23 @@ pub fn read_info(tar: &String) -> Result<SaveInfo, Error> {
             end += 1;
         }
 
-        name = format!("{}", String::from_utf8_lossy(&data[start..end]));
+        info.name = format!("{}", String::from_utf8_lossy(&data[start..end]));
     }
-    let level;
-    if levelraw.contains("arenahub") {
-        level = format!("Arena Hub");
-    } else if levelraw.contains("01") {
-        level = format!("Level 1");
-    } else if levelraw.contains("02") {
-        level = format!("Level 2");
-    } else if levelraw.contains("exanimac1") {
-        level = format!("Level 2.5\n(The Catacombs)");
-    } else if levelraw.contains("03") {
-        level = format!("Level 3");
-    } else if levelraw.contains("04") {
-        level = format!("Level 4\n(The Archives)");
-    } else if levelraw.contains("05_sw") {
-        level = format!("Level 5.5\n(The Crossroads Sewers)");
-    } else if levelraw.contains("05") {
-        level = format!("Level 5\n(The Crossroads)");
-    } else if levelraw.contains("06") {
-        level = format!("Level 6\n(The Forge)");
-    } else if levelraw.contains("07_sw") {
-        level = format!("Level 7.5\n(The Market Sewers)");
-    } else if levelraw.contains("07") {
-        level = format!("Level 7\n(The Market)");
-    } else if levelraw.contains("08") {
-        level = format!("Level 8\n(The Gentry)");
-    } else if levelraw.contains("67_c1") {
-        level = format!("Level 9.5\n(The Garden Crypts)");
-    } else if levelraw.contains("67") {
-        level = format!("Level 9\n(The Gardens)");
+    if let Some(lvl) = LEVEL_DICT.get(levelraw.as_str()) {
+        info.level = format!("{}", lvl);
     } else {
-        level = format!("Unknown Area! Level ID: {}", levelraw);
+        info.level = format!("Unknown Level!\nId = {}", levelraw);
     }
-
-    Ok(SaveInfo {
-        path: format!("{}", tar),
-        name: name,
-        location: level,
-    })
+    Ok(info)
 }
 
-// Generates fancy labels for saves instead of raw file names
-pub fn generate_save_display(at: &String, saves: &Vec<String>) -> Result<Vec<String>, Error> {
-    let mut savedisps = Vec::new();
-
+// Finds how many saves in a vector are related to a selected save
+pub fn find_num_saves(saves: &Vec<SaveInfo>, path: &String) -> i64 {
+    let mut num_saves = 0;
     for save in saves {
-        let mut save_display = String::new();
-        if save.contains("Arena") {
-            save_display.push_str(&format!(
-                "Arena Save {} ",
-                save.replace("Arena", "").replace(".rsg", "")
-            ));
-        } else {
-            save_display.push_str(&format!(
-                "Campaign Save {} ",
-                save.replace("Exanima", "").replace(".rsg", "")
-            ));
+        if save.path.contains(path) {
+            num_saves += 1;
         }
-        save_display.push_str(&format!("({})", read_name(&format!("{}/{}", at, save))?));
-        savedisps.push(save_display);
     }
-
-    Ok(savedisps)
+    num_saves
 }

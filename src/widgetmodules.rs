@@ -9,20 +9,18 @@ use iced::{
     },
 };
 use rfd;
-use std::io::Error;
 use std::env;
 use std::f64;
 use std::fs;
+use std::io::Error;
 use std::os::unix::fs::MetadataExt;
 use std::process::Command;
 
-fn create_img<'a>(path: &String, filter_method: image::FilterMethod) -> Result<Container<'a, Message>, Error> {
-    let banpath: String = format!(
-        "{}/images/{}",
-        env::current_dir()?
-            .display(),
-        path
-    );
+fn create_img<'a>(
+    path: &String,
+    filter_method: image::FilterMethod,
+) -> Result<Container<'a, Message>, Error> {
+    let banpath: String = format!("{}/images/{}", env::current_dir()?.display(), path);
     Ok(center_x(image(banpath).filter_method(filter_method)))
 }
 
@@ -68,13 +66,13 @@ impl FullState {
         let data: Config =
             serde_json::from_str(&config).expect("Config error: could not parse file");
 
-        let gamedir = format!("{}", data.savedir);
-        let savedir = format!("{}", data.backupdir);
+        let gamedir = format!("{}", data.gamedir);
+        let savedir = format!("{}", data.savedir);
         let saveops: Vec<String>;
         if fs::metadata(&gamedir).is_ok() {
-                saveops = savemanager::compile_saves(&gamedir).unwrap_or(Vec::new());
+            saveops = savemanager::compile_saves(&gamedir).unwrap_or(Vec::new());
         } else {
-                saveops = Vec::new();
+            saveops = Vec::new();
         }
 
         let mut saveinfo = Vec::new();
@@ -84,41 +82,48 @@ impl FullState {
                 match savemanager::compile_saves(&format!(
                     "{}/{}",
                     &savedir,
-                    save.replace(".rsg", ""))) {
-                            Ok(data) => {
-                                    backups = data;
-                            }
-                            Err(_) => {
-                                    // TODO: add better error tracker here
-                                    println!("ERROR: Could not compile backup saves. Continuing with empty save array.");
-                            }
+                    save.replace(".rsg", "")
+                )) {
+                    Ok(data) => {
+                        backups = data;
+                    }
+                    Err(_) => {
+                        // TODO: add better error tracker here
+                        println!(
+                            "ERROR: Could not compile backup saves. Continuing with empty save array."
+                        );
+                    }
                 }
                 for backup in backups {
-                        match savemanager::read_info(&format!(
-                            "{}/{}/{}",
-                            &savedir,
-                            save.replace(".rsg", ""),
-                            backup)) {
-                                Ok(data) => {
-                                        saveinfo.push(data)
-                                }
-                                Err(_) => {
-                                        println!("ERROR: Could not compile information on save {}/{}/{}. Skipping.", &savedir,
-                                        save.replace(".rsg", ""),
-                                        backup);
-                                }
-                        };
+                    match savemanager::read_info(&format!(
+                        "{}/{}/{}",
+                        &savedir,
+                        save.replace(".rsg", ""),
+                        backup
+                    )) {
+                        Ok(data) => saveinfo.push(data),
+                        Err(_) => {
+                            println!(
+                                "ERROR: Could not compile information on save {}/{}/{}. Skipping.",
+                                &savedir,
+                                save.replace(".rsg", ""),
+                                backup
+                            );
+                        }
+                    };
                 }
             }
         }
         let mut displaynames: Vec<String> = Vec::new();
         match savemanager::generate_save_display(&gamedir, &saveops) {
-                Ok(data) => {
-                        displaynames = data;
-                }
-                Err(_) => {
-                        println!("ERROR: Could not generate a save display for the game saves. Continuing with an empty array.");
-                }
+            Ok(data) => {
+                displaynames = data;
+            }
+            Err(_) => {
+                println!(
+                    "ERROR: Could not generate a save display for the game saves. Continuing with an empty array."
+                );
+            }
         }
 
         Self {
@@ -166,12 +171,12 @@ impl FullState {
                     );
                     if fs::metadata(&self.selected_path).is_ok() {
                         match savemanager::compile_saves(&self.selected_path) {
-                                Ok(saves) => {
-                                        self.backups = saves;
-                                }
-                                Err(_) => {
-                                        error = true;
-                                }
+                            Ok(saves) => {
+                                self.backups = saves;
+                            }
+                            Err(_) => {
+                                error = true;
+                            }
                         };
                     } else {
                         self.backups = Vec::new();
@@ -181,9 +186,9 @@ impl FullState {
                 }
                 self.findunusedsavename(self.backups.len() as i64 + 1);
                 if !error {
-                        Task::none()
+                    Task::none()
                 } else {
-                        self.throw_err("Could not compile saves!".to_string())
+                    self.throw_err("Could not compile saves!".to_string())
                 }
             }
             Message::Refresh => {
@@ -208,65 +213,64 @@ impl FullState {
                     &format!("{}/{}", self.gamefolder, self.selected_save),
                     &self.selected_path,
                     savename,
-                )
-                {
-                        Ok(_) => {
-                                let mut error = false;
-                                let mut existent = false;
-                                for saveinfo in &self.save_slot_info {
-                                        if saveinfo.path == format!(
-                                        "{}/{}.rsg", &self.selected_path, savename) {
-                                                existent = true;
-                                                let pos = self.save_slot_info
-                                                    .iter()
-                                                    .position(|r| r.path == saveinfo.path)
-                                                    .unwrap();
-                                                match savemanager::read_info(&format!(
-                                                "{}/{}.rsg",
-                                                &self.selected_path, savename
-                                                )) {
-                                                        Ok(info) => {
-                                                                self.save_slot_info[pos] = info;
-                                                        }
-                                                        Err(_) => {
-                                                                error = true;
-                                                        }
-                                                };
-                                                break;
-                                        }
-                                }
-                                if !existent {
-                                        match savemanager::read_info(&format!(
-                                        "{}/{}.rsg",
-                                        &self.selected_path, savename
-                                        )) {
-                                                Ok(info) => {
-                                                        self.save_slot_info.push(info);
-                                                }
-                                                Err(_) => {
-                                                        error = true;
-                                                }
-                                        };
-                                }
-                                if error {
-                                        self.throw_err("Could not save the game!".to_string())
-                                } else {
-                                        self.newsavename.clear();
-                                        match savemanager::compile_saves(&self.selected_path) {
-                                                Ok(data) => {
-                                                        self.backups = data;
-                                                        self.findunusedsavename(self.backups.len() as i64 + 1);
-                                                        Task::none()
-                                                }
-                                                Err(_) => {
-                                                        self.throw_err("Saved the game, but could not update the save display!".to_string())
-                                                }
-                                        }
-                                }
+                ) {
+                    Ok(_) => {
+                        let mut error = false;
+                        let mut existent = false;
+                        for saveinfo in &self.save_slot_info {
+                            if saveinfo.path == format!("{}/{}.rsg", &self.selected_path, savename)
+                            {
+                                existent = true;
+                                let pos = self
+                                    .save_slot_info
+                                    .iter()
+                                    .position(|r| r.path == saveinfo.path)
+                                    .unwrap();
+                                match savemanager::read_info(&format!(
+                                    "{}/{}.rsg",
+                                    &self.selected_path, savename
+                                )) {
+                                    Ok(info) => {
+                                        self.save_slot_info[pos] = info;
+                                    }
+                                    Err(_) => {
+                                        error = true;
+                                    }
+                                };
+                                break;
+                            }
                         }
-                        Err(_) => {
-                                self.throw_err("Could not save the game!".to_string())
+                        if !existent {
+                            match savemanager::read_info(&format!(
+                                "{}/{}.rsg",
+                                &self.selected_path, savename
+                            )) {
+                                Ok(info) => {
+                                    self.save_slot_info.push(info);
+                                }
+                                Err(_) => {
+                                    error = true;
+                                }
+                            };
                         }
+                        if error {
+                            self.throw_err("Could not save the game!".to_string())
+                        } else {
+                            self.newsavename.clear();
+                            match savemanager::compile_saves(&self.selected_path) {
+                                Ok(data) => {
+                                    self.backups = data;
+                                    self.findunusedsavename(self.backups.len() as i64 + 1);
+                                    Task::none()
+                                }
+                                Err(_) => self.throw_err(
+                                    "Saved the game, but could not update the save display!"
+                                        .to_string(),
+                                ),
+                            }
+                        }
+                    }
+                    Err(_) => self.throw_err("Could not save the game!".to_string()),
                 }
             }
             Message::OverwriteSave(tar) => {
@@ -274,13 +278,11 @@ impl FullState {
                     &format!("{}/{}", self.gamefolder, self.selected_save),
                     &self.save_slot_info[tar].path,
                 ) {
-                        Ok(_) => {
-                                self.refresh();
-                                Task::none()
-                        }
-                        Err(_) => {
-                                self.throw_err("Could not overwrite the save!".to_string())
-                        }
+                    Ok(_) => {
+                        self.refresh();
+                        Task::none()
+                    }
+                    Err(_) => self.throw_err("Could not overwrite the save!".to_string()),
                 }
             }
             Message::RestoreSave(tar) => {
@@ -288,29 +290,23 @@ impl FullState {
                     &self.save_slot_info[tar].path,
                     &format!("{}/{}", self.gamefolder, self.selected_save),
                 ) {
-                        Ok(_) => {
-                                self.update_info();
-                                self.refresh();
-                                Task::none()
-                        }
-                        Err(_) => {
-                                self.throw_err("Could not restore the save!".to_string())
-                        }
+                    Ok(_) => {
+                        self.update_info();
+                        self.refresh();
+                        Task::none()
+                    }
+                    Err(_) => self.throw_err("Could not restore the save!".to_string()),
                 }
             }
-            Message::DeleteSave(tar) => {
-                    match fs::remove_file(&self.save_slot_info[tar].path) {
-                            Ok(_) => {
-                                    self.save_slot_info.remove(tar);
-                                    self.refresh();
-                                    self.findunusedsavename(self.backups.len() as i64 + 1);
-                                    Task::none()
-                            }
-                            Err(_) => {
-                                    self.throw_err("Could not delete the save!".to_string())
-                            }
-                    }
-            }
+            Message::DeleteSave(tar) => match fs::remove_file(&self.save_slot_info[tar].path) {
+                Ok(_) => {
+                    self.save_slot_info.remove(tar);
+                    self.refresh();
+                    self.findunusedsavename(self.backups.len() as i64 + 1);
+                    Task::none()
+                }
+                Err(_) => self.throw_err("Could not delete the save!".to_string()),
+            },
             Message::ContentChanged(savename) => {
                 self.newsavename = savename;
                 Task::none()
@@ -333,93 +329,84 @@ impl FullState {
                 let mut error = 0;
                 if !self.potgamefolder.is_empty() {
                     match fs::read_to_string(&self.cfg_path) {
-                            Ok(data) => {
-                                    let contents = data;
-                                    match serde_json::from_str(&contents) {
-                                            Ok(parsed) => {
-                                                    let mut json: Config = parsed;
-                                                    json.savedir = format!("{}", &self.potgamefolder);
-                                                    match serde_json::to_string_pretty(&json) {
-                                                            Ok(data) => {
-                                                                    match fs::write(
-                                                                        &self.cfg_path,
-                                                                        data) {
-                                                                            Ok(_) => {
-                                                                                    change = true;
-                                                                            }
-                                                                            Err(_) => {
-
-                                                                                    error = 4;
-                                                                            }
-                                                                    }
-                                                            }
-                                                            Err(_) => {
-                                                                    error = 3;
-                                                            }
-                                                    }
+                        Ok(data) => {
+                            let contents = data;
+                            match serde_json::from_str(&contents) {
+                                Ok(parsed) => {
+                                    let mut json: Config = parsed;
+                                    json.savedir = format!("{}", &self.potgamefolder);
+                                    match serde_json::to_string_pretty(&json) {
+                                        Ok(data) => match fs::write(&self.cfg_path, data) {
+                                            Ok(_) => {
+                                                change = true;
                                             }
                                             Err(_) => {
-                                                    error = 2;
+                                                error = 4;
                                             }
+                                        },
+                                        Err(_) => {
+                                            error = 3;
+                                        }
                                     }
+                                }
+                                Err(_) => {
+                                    error = 2;
+                                }
                             }
-                            Err(_) => {
-                                    error = 1;
-                            }
+                        }
+                        Err(_) => {
+                            error = 1;
+                        }
                     }
                 }
                 if !self.potsavefolder.is_empty() {
                     match fs::read_to_string(&self.cfg_path) {
-                            Ok(data) => {
-                                    let contents = data;
-                                    match serde_json::from_str(&contents) {
-                                            Ok(parsed) => {
-                                                    let mut json: Config = parsed;
-                                                    json.backupdir = format!("{}", &self.potsavefolder);
-                                                    match serde_json::to_string_pretty(&json) {
-                                                            Ok(data) => {
-                                                                    match fs::write(
-                                                                        &self.cfg_path,
-                                                                        data) {
-                                                                            Ok(_) => {
-                                                                                    change = true;
-                                                                            }
-                                                                            Err(_) => {
-                                                                                    error = 4;
-                                                                            }
-                                                                    }
-                                                            }
-                                                            Err(_) => {
-                                                                    error = 3;
-                                                            }
-                                                    }
+                        Ok(data) => {
+                            let contents = data;
+                            match serde_json::from_str(&contents) {
+                                Ok(parsed) => {
+                                    let mut json: Config = parsed;
+                                    json.backupdir = format!("{}", &self.potsavefolder);
+                                    match serde_json::to_string_pretty(&json) {
+                                        Ok(data) => match fs::write(&self.cfg_path, data) {
+                                            Ok(_) => {
+                                                change = true;
                                             }
                                             Err(_) => {
-                                                    error = 2;
+                                                error = 4;
                                             }
+                                        },
+                                        Err(_) => {
+                                            error = 3;
+                                        }
                                     }
+                                }
+                                Err(_) => {
+                                    error = 2;
+                                }
                             }
-                            Err(_) => {
-                                    error = 1;
-                            }
+                        }
+                        Err(_) => {
+                            error = 1;
+                        }
                     }
                 }
                 if change {
                     match self.refresh_folders() {
-                            Ok(_) => {}
-                            Err(_) => {
-                                    error = 5;
-                            }
+                        Ok(_) => {}
+                        Err(_) => {
+                            error = 5;
+                        }
                     };
                 }
                 match error {
-                        0 => Task::none(),
-                        1 => self.throw_err("Could not read the config file!".to_string()),
-                        2 => self.throw_err("Could not parse config data!".to_string()),
-                        3 => self.throw_err("Could not serialize new config data!".to_string()),
-                        4 => self.throw_err("Could not write to the config file!".to_string()),
-                        5 => self.throw_err("Could not refresh folders!".to_string()),
-                        _ => Task::none()
+                    0 => Task::none(),
+                    1 => self.throw_err("Could not read the config file!".to_string()),
+                    2 => self.throw_err("Could not parse config data!".to_string()),
+                    3 => self.throw_err("Could not serialize new config data!".to_string()),
+                    4 => self.throw_err("Could not write to the config file!".to_string()),
+                    5 => self.throw_err("Could not refresh folders!".to_string()),
+                    _ => Task::none(),
                 }
             }
             _ => Task::none(),
@@ -434,18 +421,18 @@ impl FullState {
     }
 
     fn throw_err(&self, message: String) -> Task<Message> {
-            Task::perform(
-                    async move {
-                            rfd::AsyncMessageDialog::new()
-                            .set_buttons(rfd::MessageButtons::Ok)
-                            .set_level(rfd::MessageLevel::Error)
-                            .set_title("Error")
-                            .set_description(message)
-                            .show()
-                            .await
-                    },
-                    |_| Message::MessageClosed,
-            )
+        Task::perform(
+            async move {
+                rfd::AsyncMessageDialog::new()
+                    .set_buttons(rfd::MessageButtons::Ok)
+                    .set_level(rfd::MessageLevel::Error)
+                    .set_title("Error")
+                    .set_description(message)
+                    .show()
+                    .await
+            },
+            |_| Message::MessageClosed,
+        )
     }
 
     fn refresh_folders(&mut self) -> Result<(), Error> {
@@ -459,12 +446,12 @@ impl FullState {
         self.savefolder = format!("{}", data.backupdir);
         let mut saveops: Vec<String> = Vec::new();
         if fs::metadata(&self.gamefolder).is_ok() {
-                match savemanager::compile_saves(&self.gamefolder) {
-                        Ok(saves) => {
-                                saveops = saves;
-                        }
-                        Err(_) => {}
+            match savemanager::compile_saves(&self.gamefolder) {
+                Ok(saves) => {
+                    saveops = saves;
                 }
+                Err(_) => {}
+            }
         }
         self.selected_save.clear();
         self.selected_path = format!(
@@ -480,18 +467,18 @@ impl FullState {
                     "{}/{}",
                     &self.savefolder,
                     save.replace(".rsg", "")
-                )).unwrap_or(Vec::new());
+                ))
+                .unwrap_or(Vec::new());
                 for backup in backups {
-                        match savemanager::read_info(&format!(
-                                "{}/{}/{}",
-                                &self.savefolder,
-                                save.replace(".rsg", ""),
-                                backup)) {
-                                        Ok(savedata) => {
-                                                self.save_slot_info.push(savedata)
-                                        }
-                                        Err(_) => {}
-                                }
+                    match savemanager::read_info(&format!(
+                        "{}/{}/{}",
+                        &self.savefolder,
+                        save.replace(".rsg", ""),
+                        backup
+                    )) {
+                        Ok(savedata) => self.save_slot_info.push(savedata),
+                        Err(_) => {}
+                    }
                 }
             }
         }
@@ -516,12 +503,12 @@ impl FullState {
     fn settings_ui(&self) -> Column<'_, Message> {
         let mut screening: Column<'_, Message>;
         match create_img(&format!("Banner.png"), image::FilterMethod::Linear) {
-                Ok(image) => {
-                        screening = column!(image.width(Length::Fill));
-                }
-                Err(_) => {
-                        screening = column!(text!("404").center().width(Length::Fill));
-                }
+            Ok(image) => {
+                screening = column!(image.width(Length::Fill));
+            }
+            Err(_) => {
+                screening = column!(text!("404").center().width(Length::Fill));
+            }
         }
         screening = screening.push(
             column![
@@ -529,56 +516,72 @@ impl FullState {
                     .on_press(Message::Settings)
                     .width(Length::Fill),
                 row![
-                    text!("Game Folder:").height(30).width(Length::FillPortion(2)).center(),
-                    text_input(&self.gamefolder, &self.potgamefolder).size(15).width(Length::FillPortion(15)),
+                    text!("Game Folder:")
+                        .height(30)
+                        .width(Length::FillPortion(2))
+                        .center(),
+                    text_input(&self.gamefolder, &self.potgamefolder)
+                        .size(15)
+                        .width(Length::FillPortion(15)),
                     match create_img(&format!("folder.png"), image::FilterMethod::Linear) {
-                            Ok(image) => {
-                                    button(image.width(25))
-                                    .width(Length::FillPortion(1))
-                                    .style(button::text)
-                                    .height(30)
-                                    .on_press(Message::OpenFolder(0))
-                            }
-                            Err(_) => {
-                                    button(text!("404").width(25))
-                                    .width(Length::FillPortion(1))
-                                    .style(button::text)
-                                    .height(30)
-                                    .on_press(Message::OpenFolder(0))
-                            }
+                        Ok(image) => {
+                            button(image.width(25))
+                                .width(Length::FillPortion(1))
+                                .style(button::text)
+                                .height(30)
+                                .on_press(Message::OpenFolder(0))
+                        }
+                        Err(_) => {
+                            button(text!("404").width(25))
+                                .width(Length::FillPortion(1))
+                                .style(button::text)
+                                .height(30)
+                                .on_press(Message::OpenFolder(0))
+                        }
                     },
-                    button(text!("Apply").width(Length::FillPortion(1)).center()).height(30).on_press(Message::ApplyFolder).width(Length::FillPortion(1)),
+                    button(text!("Apply").width(Length::FillPortion(1)).center())
+                        .height(30)
+                        .on_press(Message::ApplyFolder)
+                        .width(Length::FillPortion(1)),
                 ],
                 if !fs::metadata(&self.gamefolder).is_ok() {
-                        self.gen_error(&"This game folder is invalid!".to_string())
+                    self.gen_error(&"This game folder is invalid!".to_string())
                 } else {
-                        column!()
+                    column!()
                 },
                 row![
-                        text!("Save Folder:").height(30).width(Length::FillPortion(2)).center(),
-                    text_input(&self.savefolder, &self.potsavefolder).size(15).width(Length::FillPortion(15)),
+                    text!("Save Folder:")
+                        .height(30)
+                        .width(Length::FillPortion(2))
+                        .center(),
+                    text_input(&self.savefolder, &self.potsavefolder)
+                        .size(15)
+                        .width(Length::FillPortion(15)),
                     match create_img(&format!("folder.png"), image::FilterMethod::Linear) {
-                            Ok(image) => {
-                                    button(image.width(25))
-                                    .width(Length::FillPortion(1))
-                                    .style(button::text)
-                                    .height(30)
-                                    .on_press(Message::OpenFolder(1))
-                            }
-                            Err(_) => {
-                                    button(text!("404").width(25))
-                                    .width(Length::FillPortion(1))
-                                    .style(button::text)
-                                    .height(30)
-                                    .on_press(Message::OpenFolder(1))
-                            }
+                        Ok(image) => {
+                            button(image.width(25))
+                                .width(Length::FillPortion(1))
+                                .style(button::text)
+                                .height(30)
+                                .on_press(Message::OpenFolder(1))
+                        }
+                        Err(_) => {
+                            button(text!("404").width(25))
+                                .width(Length::FillPortion(1))
+                                .style(button::text)
+                                .height(30)
+                                .on_press(Message::OpenFolder(1))
+                        }
                     },
-                    button(text!("Apply").width(Length::FillPortion(1)).center()).height(30).on_press(Message::ApplyFolder).width(Length::FillPortion(1)),
+                    button(text!("Apply").width(Length::FillPortion(1)).center())
+                        .height(30)
+                        .on_press(Message::ApplyFolder)
+                        .width(Length::FillPortion(1)),
                 ],
                 if !fs::metadata(&self.savefolder).is_ok() {
-                        self.gen_error(&"This save folder is invalid!".to_string())
+                    self.gen_error(&"This save folder is invalid!".to_string())
                 } else {
-                        column!()
+                    column!()
                 },
             ]
             .padding(5)
@@ -591,36 +594,50 @@ impl FullState {
     fn save_ui(&self) -> Column<'_, Message> {
         let mut screening: Column<'_, Message>;
         match create_img(&format!("Banner.png"), image::FilterMethod::Linear) {
-                Ok(image) => {
-                        screening = column!(image.width(Length::Fill), self.save_selector());
-                }
-                Err(_) => {
-                        screening = column!(text!("404").center().width(Length::Fill), self.save_selector());
-                }
+            Ok(image) => {
+                screening = column!(image.width(Length::Fill), self.save_selector());
+            }
+            Err(_) => {
+                screening = column!(
+                    text!("404").center().width(Length::Fill),
+                    self.save_selector()
+                );
+            }
         }
         if !fs::metadata(&self.savefolder).is_ok() || !fs::metadata(&self.gamefolder).is_ok() {
-                if !fs::metadata(&self.gamefolder).is_ok() {
-                        screening = screening.push(self.gen_error(&"The current game folder is invalid! Resolve this issue in the Settings.".to_string()));
-                }
-                if !fs::metadata(&self.savefolder).is_ok() {
-                        screening = screening.push(self.gen_error(&"The current save folder is invalid! Resolve this issue in the Settings.".to_string()));
-                }
+            if !fs::metadata(&self.gamefolder).is_ok() {
+                screening = screening.push(
+                    self.gen_error(
+                        &"The current game folder is invalid! Resolve this issue in the Settings."
+                            .to_string(),
+                    ),
+                );
+            }
+            if !fs::metadata(&self.savefolder).is_ok() {
+                screening = screening.push(
+                    self.gen_error(
+                        &"The current save folder is invalid! Resolve this issue in the Settings."
+                            .to_string(),
+                    ),
+                );
+            }
         } else {
-                if self.selected_disp != None {
-                        screening = screening.push(self.save_info());
-                        screening = screening.push(self.save_slots());
-                }
+            if self.selected_disp != None {
+                screening = screening.push(self.save_info());
+                screening = screening.push(self.save_slots());
+            }
         }
 
         screening
     }
 
     fn gen_error(&self, message: &String) -> Column<'_, Message> {
-            column!(text!("{}", message).color(color!(255, 0, 0))).width(Length::Fill).padding(5)
+        column!(text!("{}", message).color(color!(255, 0, 0)))
+            .width(Length::Fill)
+            .padding(5)
     }
 
-    // You know who ELSE uses recursion? You know who ELSE uses recursion? You know who--
-    // Should find an unused save number.
+    // Finds an unused save name.
     fn findunusedsavename(&mut self, save_num: i64) {
         self.defaultsavename = format!("Save {}", save_num);
         if fs::exists(format!(
@@ -635,12 +652,13 @@ impl FullState {
 
     fn refresh(&mut self) {
         if fs::metadata(&self.gamefolder).is_ok() {
-                self.saves = savemanager::compile_saves(&self.gamefolder).unwrap_or(Vec::new());
-                self.savedisp = savemanager::generate_save_display(&self.gamefolder, &self.saves).expect("Broken");
+            self.saves = savemanager::compile_saves(&self.gamefolder).unwrap_or(Vec::new());
+            self.savedisp =
+                savemanager::generate_save_display(&self.gamefolder, &self.saves).expect("Broken");
         }
         if fs::metadata(&self.selected_path).is_ok() {
-                self.backups = savemanager::compile_saves(&self.selected_path).unwrap_or(Vec::new());
-                // Check if there are new saves here, then compile information about them into the cache
+            self.backups = savemanager::compile_saves(&self.selected_path).unwrap_or(Vec::new());
+            // Check if there are new saves here, then compile information about them into the cache
         }
     }
 
@@ -681,11 +699,11 @@ impl FullState {
             let metadata = fs::metadata(&fullpath).unwrap();
             match metadata.created() {
                 Ok(date) => {
-                        let time: DateTime<Local> = date.into();
-                        self.created_date = format!("{}", time.format("%m/%d/%Y at %-I:%M %p"));
+                    let time: DateTime<Local> = date.into();
+                    self.created_date = format!("{}", time.format("%m/%d/%Y at %-I:%M %p"));
                 }
                 Err(_) => {
-                        self.created_date = "Unknown Time".to_string();
+                    self.created_date = "Unknown Time".to_string();
                 }
             }
             if fullpath.contains("Arena0") {
@@ -742,13 +760,13 @@ impl FullState {
         let meta = fs::metadata(&info.path).unwrap();
         let time_str: String;
         match meta.modified() {
-                Ok(date) => {
-                        let time: DateTime<Local> = date.into();
-                        time_str = format!("{}", time.format("%m/%d/%Y at %-I:%M %p"));
-                }
-                Err(_) => {
-                        time_str = "Unknown Time".to_string();
-                }
+            Ok(date) => {
+                let time: DateTime<Local> = date.into();
+                time_str = format!("{}", time.format("%m/%d/%Y at %-I:%M %p"));
+            }
+            Err(_) => {
+                time_str = "Unknown Time".to_string();
+            }
         };
         let file_size: f64 = (meta.size() as f64) / 1000000.0;
         column![
@@ -789,12 +807,12 @@ impl FullState {
                     rule::vertical(2),
                     button(column![
                         match create_img(&format!("save.png"), image::FilterMethod::Linear) {
-                                Ok(img) => {
-                                        container(img.height(Length::FillPortion(3)))
-                                }
-                                Err(_) => {
-                                        container(text!("404"))
-                                }
+                            Ok(img) => {
+                                container(img.height(Length::FillPortion(3)))
+                            }
+                            Err(_) => {
+                                container(text!("404"))
+                            }
                         },
                         text!("Save")
                             .height(Length::FillPortion(1))
@@ -811,12 +829,12 @@ impl FullState {
                     .height(75),
                     button(column![
                         match create_img(&format!("restore.png"), image::FilterMethod::Linear) {
-                                Ok(img) => {
-                                        container(img.height(Length::FillPortion(3)))
-                                }
-                                Err(_) => {
-                                        container(text!("404").height(Length::FillPortion(3)).center())
-                                }
+                            Ok(img) => {
+                                container(img.height(Length::FillPortion(3)))
+                            }
+                            Err(_) => {
+                                container(text!("404").height(Length::FillPortion(3)).center())
+                            }
                         },
                         text!("Restore")
                             .height(Length::FillPortion(1))
@@ -833,12 +851,12 @@ impl FullState {
                     .height(75),
                     button(column![
                         match create_img(&format!("delete.png"), image::FilterMethod::Linear) {
-                                Ok(img) => {
-                                        container(img.height(Length::FillPortion(3)))
-                                }
-                                Err(_) => {
-                                        container(text!("404").height(Length::FillPortion(3)).center())
-                                }
+                            Ok(img) => {
+                                container(img.height(Length::FillPortion(3)))
+                            }
+                            Err(_) => {
+                                container(text!("404").height(Length::FillPortion(3)).center())
+                            }
                         },
                         text!("Delete")
                             .height(Length::FillPortion(1))

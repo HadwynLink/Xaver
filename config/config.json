@@ -1,4 +1,4 @@
 {
-  "savedir": "/home/hadwyn/Documents/Projects/Arena/TestingEnv/DummyGame",
-  "backupdir": "/home/hadwyn/Documents/Projects/Arena/TestingEnv/DummySaves"
+  "gamedir": "/home/hadwyn/Documents/Projects/Arena/TestingEnv/DummyGame",
+  "savedir": "/home/hadwyn/Documents/Projects/Arena/TestingEnv/DummySaves"
 }

@@ -1,13 +1,15 @@
 // Purpose: To save and load exanima games easily, and create checkpoints artificially
 mod messages;
 mod savemanager;
-mod widgetmodules;
+mod utils;
+mod windowdisplay;
+//mod widgetmodules;
 
 pub fn main() -> iced::Result {
     iced::application(
-        widgetmodules::FullState::default,
-        widgetmodules::FullState::update,
-        widgetmodules::FullState::view,
+        windowdisplay::Xaver::default,
+        windowdisplay::Xaver::update,
+        windowdisplay::Xaver::view,
     )
     .run()
 }

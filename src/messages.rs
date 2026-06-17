@@ -1,31 +1,22 @@
-use serde::{Deserialize, Serialize};
+use crate::savemanager::SaveInfo;
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    SaveSelected(String),
+    SaveSelected(SaveInfo),
     Refresh,
     Launch,
-    Settings,
     NewSave,
-    OverwriteSave(usize),
-    RestoreSave(usize),
-    DeleteSave(usize),
-    ContentChanged(String),
-    MessageClosed,
+    SwitchDisplay(i32),
+    OverwriteSave(String),
+    RestoreSave(String),
+    DeleteSave(String),
+    SaveNameChanged(String),
+    SaveFolderChanged(String),
+    GameFolderChanged(String),
     OpenFolder(i32),
     FolderCanceled,
     FolderSelected(i32, String),
     ApplyFolder,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Config {
-    pub savedir: String,
-    pub backupdir: String,
-}
-
-pub struct SaveInfo {
-    pub path: String,
-    pub name: String,
-    pub location: String,
+    MessageClosed,
+    NewConfig,
 }
