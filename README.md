@@ -6,9 +6,6 @@ This tool attempts to implement saving and loading for Exanima, similar to the S
 **As of right now, Xaver can be used on the following Operating Systems:**
 * Linux
 
-<img width="1025" height="766" alt="Screenshot_20260617_133828" src="https://github.com/user-attachments/assets/17ba13c7-63ac-4cfa-adfb-405a207b3387" />
-
-
 ## Features
 Along with being able to make and restore backup saves for each save you have in the game, Xaver allows you to make several backups per save slot. Additionally, Xaver is able to display relevant information about the save, such as:
 * Name of the character
