@@ -3,7 +3,7 @@ mod messages;
 mod savemanager;
 mod utils;
 mod windowdisplay;
-//mod widgetmodules;
+use iced::{Application, window};
 
 pub fn main() -> iced::Result {
     iced::application(
@@ -11,5 +11,9 @@ pub fn main() -> iced::Result {
         windowdisplay::Xaver::update,
         windowdisplay::Xaver::view,
     )
+    .window(window::Settings {
+        icon: utils::load_icon().unwrap_or(None),
+        ..Default::default()
+    })
     .run()
 }

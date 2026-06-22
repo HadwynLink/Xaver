@@ -1,6 +1,7 @@
 // Defines general utility functions for the upkeep of the tool
 use crate::messages::*;
 use iced::widget::{Container, center_x, image, text};
+use iced::window::icon;
 use serde::{Deserialize, Serialize};
 use std::{env, fs, io::Error};
 use users::{self, get_current_username};
@@ -78,6 +79,16 @@ pub fn new_config(info: Config) -> Result<(), Error> {
     fs::create_dir_all(&cfg_path)?;
     fs::write(&format!("{}/config.json", cfg_path), json_str)?;
     Ok(())
+}
+
+// Loads a window icon
+pub fn load_icon() -> Result<Option<icon::Icon>, Error> {
+    let cur_dir = env::current_dir()?;
+    let bytes = std::fs::read(format!("{}/images/icon.png", cur_dir.to_string_lossy()))?;
+
+    let icon =
+        icon::from_file_data(&bytes, None).expect("Catastrophic error: Could not find icon!");
+    Ok(Some(icon))
 }
 
 // Loads an image, or 404 if image is not found
