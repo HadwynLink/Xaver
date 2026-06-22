@@ -15,7 +15,7 @@ Along with being able to make and restore backup saves for each save you have in
 Additionally, you can launch Exanima directly from the tool!
 
 ## Installation
-**To install from releases**, simply download the .zip file, extract, and run Xaver. Then select your preferred save and game folders in the settings.
+**To install from releases (Recommended)**, simply download the .zip file, extract, and run Xaver. Then select your preferred save and game folders in the settings.
 
 
 **To install from the raw code**, download the code and run cargo build --release. Then, find the executable file in target and move it to the main folder. You can then run the code.
