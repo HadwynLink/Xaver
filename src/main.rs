@@ -3,7 +3,7 @@ mod messages;
 mod savemanager;
 mod utils;
 mod windowdisplay;
-use iced::{Application, window};
+use iced::window;
 
 pub fn main() -> iced::Result {
     iced::application(
