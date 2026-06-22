@@ -1,5 +1,5 @@
 # Xaver
-This tool attempts to implement saving and loading as a tool for Exanima, similar to the Salvus save manager tool by steam user Silk, a link to which you can find at (https://steamcommunity.com/app/362490/discussions/0/4032473829604421294/).
+This tool attempts to implement saving and loading for Exanima, similar to the Salvus save manager by steam user Silk, a link to which you can find at (https://steamcommunity.com/app/362490/discussions/0/4032473829604421294/).
 
 
 
