@@ -1,7 +1,14 @@
 // Defines functions for working with saves
 use chrono::{DateTime, Local};
 use memchr::memmem;
-use std::{collections::HashMap, fmt, fs, io::Error, os::unix::fs::MetadataExt, sync::LazyLock};
+use std::{
+    collections::HashMap,
+    fmt,
+    fs::{self, metadata},
+    io::Error,
+    os::unix::fs::MetadataExt,
+    sync::LazyLock,
+};
 
 // Dictionary to store names of levels
 static LEVEL_DICT: LazyLock<HashMap<&'static str, &str>> = LazyLock::new(|| {
@@ -103,6 +110,14 @@ pub fn compile_info(from: &String) -> Result<Vec<SaveInfo>, Error> {
         }
     }
     Ok(saves)
+}
+
+// Creates the path to the save folder if it doesn't exist already
+pub fn create_save_folder(path: &String) -> Result<(), Error> {
+    if !metadata(path).is_ok() {
+        fs::create_dir_all(path)?;
+    }
+    Ok(())
 }
 
 // Creates a new save, making a new directory for it if it doesn't exist

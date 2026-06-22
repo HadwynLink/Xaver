@@ -1,8 +1,4 @@
-use crate::{
-    messages::{Message::Refresh, *},
-    savemanager::*,
-    utils::*,
-};
+use crate::{messages::*, savemanager::*, utils::*};
 use iced::{
     Length, Task, color,
     widget::{
@@ -42,8 +38,8 @@ impl Xaver {
     pub fn default() -> Self {
         // Variable staging
         let s_window_state: i32;
-        let s_game_folder: String;
-        let s_save_folder: String;
+        let mut s_game_folder: String;
+        let mut s_save_folder: String;
         let s_game_saves: Vec<SaveInfo>;
         let mut s_backup_saves: Vec<SaveInfo> = Vec::new();
 
@@ -87,6 +83,10 @@ impl Xaver {
                 s_backup_saves = Vec::new();
             }
         }
+        if s_window_state == 2 {
+            s_game_folder = recommend_game_folder();
+            s_save_folder = recommend_backup_folder();
+        }
         Self {
             // Tracks what panel to display
             // 0 = Main Page; 1 = Settings
@@ -123,7 +123,14 @@ impl Xaver {
                 Task::none()
             }
             Message::SwitchDisplay(state_num) => {
+                if self.window_state == 2 && state_num != 2 {
+                    self.save_folder_input.clear();
+                    self.game_folder_input.clear();
+                }
                 self.window_state = state_num;
+                if self.window_state == 2 {
+                    self.setup_folder_suggestions();
+                }
                 Task::none()
             }
             Message::SaveSelected(option) => {
@@ -327,10 +334,27 @@ impl Xaver {
                     )),
                 }
             }
-            Message::NewConfig => match new_config() {
+            Message::NewConfig => match new_config(Config {
+                gamedir: if self.game_folder_input.is_empty() {
+                    self.game_folder.clone()
+                } else {
+                    self.game_folder_input.clone()
+                },
+                savedir: if self.save_folder_input.is_empty() {
+                    self.save_folder.clone()
+                } else {
+                    self.save_folder_input.clone()
+                },
+            }) {
                 Ok(_) => {
                     self.refresh();
-                    Task::none()
+                    match create_save_folder(&self.save_folder) {
+                        Ok(_) => Task::none(),
+                        Err(err_type) => self.error_popup(format!(
+                            "Error: Could not create or verify the specified backup folder! Error Code:\n{:#?}",
+                            err_type
+                        )),
+                    }
                 }
                 Err(err_type) => self.error_popup(format!(
                     "Error: Could not create a new config file! Error Code:\n{:#?}",
@@ -650,21 +674,47 @@ impl Xaver {
             column!(
                 text!("SETUP").width(Length::Fill).size(25).center(),
                 rule::horizontal(2),
-                text!("Config file can't be found!")
+                text!("This is either your first time running Xaver, or the config file has been misplaced.")
                     .width(Length::Fill)
                     .center(),
-                text!("This means that the config file has either been moved, deleted, or is otherwise in a place this tool cannot access.")
+                text!("Ensure that the following file locations are correct, then press Create New Config.")
                     .width(Length::Fill)
                     .center(),
-                text!("There are two ways to fix this issue:")
-                    .width(Length::Fill)
-                    .center(),
-                text!("1. Return the config file to the expected location: {}", get_proper_config_location())
-                    .width(Length::Fill)
-                    .center(),
-                text!("2. Make a new config file at {}", get_proper_config_location())
-                    .width(Length::Fill)
-                    .center(),
+                rule::horizontal(2),
+                column![
+                        text!("Game Folder: This is where the game stores save data. It should have .rsg files in it.")
+                                .height(30),
+                        row![
+                                text_input(&self.game_folder, &self.game_folder_input)
+                                        .size(15)
+                                        .on_input(Message::GameFolderChanged)
+                                        .width(Length::FillPortion(15)),
+                                button(
+                                        create_img(&format!("folder.png"), image::FilterMethod::Linear).width(25)
+                                )
+                                .width(Length::FillPortion(1))
+                                .style(button::text)
+                                .height(30)
+                                .on_press(Message::OpenFolder(0)),
+                        ]
+                ],
+                column![
+                        text!("Save Folder: This is where Xaver will store backup saves. If the folder specified does not exist, Xaver will create it.")
+                                .height(30),
+                        row![
+                                text_input(&self.save_folder, &self.save_folder_input)
+                                        .size(15)
+                                        .on_input(Message::SaveFolderChanged)
+                                        .width(Length::FillPortion(15)),
+                                button(
+                                        create_img(&format!("folder.png"), image::FilterMethod::Linear).width(25)
+                                )
+                                .width(Length::FillPortion(1))
+                                .style(button::text)
+                                .height(30)
+                                .on_press(Message::OpenFolder(0)),
+                        ]
+                ],
                 button(text!("Create New Config").width(Length::Fill).center())
                     .on_press(Message::NewConfig)
                     .width(Length::Fill),
@@ -676,6 +726,11 @@ impl Xaver {
             .spacing(5),
         );
         screening
+    }
+    // Sets up the folder variables to suggest common places for the files to be
+    fn setup_folder_suggestions(&mut self) {
+        self.game_folder = recommend_game_folder();
+        self.save_folder = recommend_backup_folder();
     }
 
     /* ------------------ COMMON UTILITIES ------------------ */
