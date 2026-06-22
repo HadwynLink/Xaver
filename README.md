@@ -3,7 +3,7 @@ This tool attempts to implement saving and loading for Exanima, similar to the S
 
 
 
-**As of right now, Xaver can be used on the following Operating Systems:**
+**As of right now, Xaver supports the following Operating Systems:**
 * Linux
 
 ## Features
