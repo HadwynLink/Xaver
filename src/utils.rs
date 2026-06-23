@@ -4,7 +4,12 @@ use iced::widget::{Container, center_x, image, text};
 use iced::window::icon;
 use serde::{Deserialize, Serialize};
 use std::{env, fs, io::Error};
+
+#[cfg(target_os = "linux")]
 use users::{self, get_current_username};
+
+#[cfg(target_os = "windows")]
+use whoami;
 
 // Data structure to store config information
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -30,9 +35,11 @@ pub fn save_config(info: Config) -> Result<(), Error> {
 }
 
 // Finds the most plausible location for the game folder on different platforms
+
 pub fn recommend_game_folder() -> String {
-    match env::consts::OS {
-        "linux" => match get_current_username() {
+    #[cfg(target_os = "linux")]
+    {
+        match get_current_username() {
             Some(uname) => {
                 format!(
                     "/home/{}/.steam/steam/steamapps/compatdata/362490/pfx/drive_c/users/steamuser/Application Data/Exanima",
@@ -40,10 +47,14 @@ pub fn recommend_game_folder() -> String {
                 )
             }
             None => "Username discovery error".to_string(),
-        },
-        "windows" => "Warning: Windows compatibility is completely untested!".to_string(),
-        "macos" => "Warning: MacOS compatibility is completely untested!".to_string(),
-        _ => "Warning: Possibly Unsupported Operating System!".to_string(),
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        format!(
+            "C:/Users/{}/AppData/Roaming/Exanima",
+            whoami::username().unwrap_or_else(|_| "<unknown>".to_string()),
+        )
     }
 }
 

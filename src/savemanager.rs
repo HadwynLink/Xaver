@@ -6,7 +6,6 @@ use std::{
     fmt,
     fs::{self, metadata},
     io::Error,
-    os::unix::fs::MetadataExt,
     sync::LazyLock,
 };
 
@@ -152,7 +151,7 @@ pub fn read_info(tar: &String) -> Result<SaveInfo, Error> {
                 }
                 Err(_) => {}
             }
-            info.file_size = (metadata.size() as f64) / 1000000.0;
+            info.file_size = (metadata.len() as f64) / 1000000.0;
         }
         Err(_) => {}
     };
