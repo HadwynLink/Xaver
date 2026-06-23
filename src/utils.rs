@@ -60,16 +60,11 @@ pub fn recommend_game_folder() -> String {
 
 // Finds the most plausible location for the game folder on different platforms
 pub fn recommend_backup_folder() -> String {
-    match env::consts::OS {
-        "linux" => match env::current_dir() {
-            Ok(cur_dir) => {
-                format!("{}/saves", cur_dir.to_string_lossy())
-            }
-            Err(_) => "Current Dir discovery error".to_string(),
-        },
-        "windows" => "Warning: Windows compatibility is completely untested!".to_string(),
-        "macos" => "Warning: MacOS compatibility is completely untested!".to_string(),
-        _ => "Warning: Possibly Unsupported Operating System!".to_string(),
+    match env::current_dir() {
+        Ok(cur_dir) => {
+            format!("{}/saves", cur_dir.to_string_lossy())
+        }
+        Err(_) => "Current Dir discovery error".to_string(),
     }
 }
 
