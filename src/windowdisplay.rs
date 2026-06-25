@@ -178,6 +178,7 @@ impl Xaver {
                                             self.backup_saves[pos] = new_save_info;
                                         }
                                     }
+                                    self.new_save_name.clear();
                                     Task::none()
                                 }
                                 Err(err_type) => self.error_popup(format!(
