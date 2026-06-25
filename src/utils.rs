@@ -11,6 +11,7 @@ use users::{self, get_current_username};
 #[cfg(target_os = "windows")]
 use whoami;
 
+
 // Data structure to store config information
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Config {
@@ -20,7 +21,7 @@ pub struct Config {
 
 // Returns the config file's information
 pub fn get_config() -> Result<Config, Error> {
-    let cfg_path: String = format!("{}/config/config.json", env::current_dir()?.display());
+    let cfg_path: String = format!("{}/config/config.json", env::current_dir()?.to_string_lossy().replace("\\", "/"));
     let config = fs::read_to_string(&cfg_path)?;
     let data: Config = serde_json::from_str(&config)?;
     Ok(data)
@@ -28,7 +29,7 @@ pub fn get_config() -> Result<Config, Error> {
 
 // Saves new config info to the config file
 pub fn save_config(info: Config) -> Result<(), Error> {
-    let cfg_path: String = format!("{}/config/config.json", env::current_dir()?.display());
+    let cfg_path: String = format!("{}/config/config.json", env::current_dir()?.to_string_lossy().replace("\\", "/"));
     let json_str = serde_json::to_string_pretty(&info)?;
     fs::write(&cfg_path, json_str)?;
     Ok(())
@@ -62,7 +63,7 @@ pub fn recommend_game_folder() -> String {
 pub fn recommend_backup_folder() -> String {
     match env::current_dir() {
         Ok(cur_dir) => {
-            format!("{}/saves", cur_dir.to_string_lossy())
+            format!("{}/saves", cur_dir.to_string_lossy().replace("\\", "/"))
         }
         Err(_) => "Current Dir discovery error".to_string(),
     }
@@ -72,7 +73,7 @@ pub fn recommend_backup_folder() -> String {
 pub fn _get_proper_config_location() -> String {
     match env::current_dir() {
         Ok(cur_dir) => {
-            format!("{}/config", cur_dir.display())
+            format!("{}/config", cur_dir.to_string_lossy().replace("\\", "/"))
         }
         Err(_) => "Error: Could not find current directory!".to_string(),
     }
@@ -80,7 +81,7 @@ pub fn _get_proper_config_location() -> String {
 
 // Tries to make a new config file at the expected location
 pub fn new_config(info: Config) -> Result<(), Error> {
-    let cfg_path: String = format!("{}/config", env::current_dir()?.display());
+    let cfg_path: String = format!("{}/config", env::current_dir()?.to_string_lossy().replace("\\", "/"));
     let json_str = serde_json::to_string_pretty(&info)?;
     fs::create_dir_all(&cfg_path)?;
     fs::write(&format!("{}/config.json", cfg_path), json_str)?;
@@ -90,7 +91,7 @@ pub fn new_config(info: Config) -> Result<(), Error> {
 // Loads a window icon
 pub fn load_icon() -> Result<Option<icon::Icon>, Error> {
     let cur_dir = env::current_dir()?;
-    let bytes = std::fs::read(format!("{}/images/icon.png", cur_dir.to_string_lossy()))?;
+    let bytes = std::fs::read(format!("{}/images/icon.png", cur_dir.to_string_lossy().replace("\\", "/")))?;
 
     let icon =
         icon::from_file_data(&bytes, None).expect("Catastrophic error: Could not find icon!");
@@ -101,7 +102,7 @@ pub fn load_icon() -> Result<Option<icon::Icon>, Error> {
 pub fn create_img<'a>(path: &String, filter_method: image::FilterMethod) -> Container<'a, Message> {
     match env::current_dir() {
         Ok(dir) => {
-            let banpath: String = format!("{}/images/{}", dir.display(), path);
+            let banpath: String = format!("{}/images/{}", dir.to_string_lossy().replace("\\", "/"), path);
             center_x(image(banpath).filter_method(filter_method))
         }
         Err(_) => center_x(text!("404")),

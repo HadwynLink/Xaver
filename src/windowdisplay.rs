@@ -56,7 +56,7 @@ impl Xaver {
                     s_game_saves = Vec::new();
                 }
                 for save in &s_game_saves {
-                    if let Some((_, fname)) = save.path.rsplit_once('/') {
+                    if let Some((_, fname)) = save.path.replace("\\", "/").rsplit_once('/') {
                         if fs::metadata(format!("{}/{}", &s_save_folder, fname.replace(".rsg", "")))
                             .is_ok()
                         {
@@ -136,7 +136,7 @@ impl Xaver {
             Message::SaveSelected(option) => {
                 self.selected_save = Some(option);
                 if let Some(save_info) = self.selected_save.as_ref() {
-                    if let Some((_, fname)) = save_info.path.rsplit_once('/') {
+                    if let Some((_, fname)) = save_info.path.replace("\\", "/").rsplit_once('/') {
                         self.selected_save_path =
                             format!("{}/{}", &self.save_folder, fname.replace(".rsg", ""));
                     }
@@ -155,7 +155,7 @@ impl Xaver {
                     &self.default_save_name
                 };
                 if let Some(save_info) = &self.selected_save {
-                    match new_save(&save_info.path, &self.selected_save_path, save_name) {
+                    match new_save(&save_info.path.replace("\\", "/"), &self.selected_save_path, save_name) {
                         Ok(_) => {
                             // TODO: Signal success of the operation to user
                             match read_info(&format!(
@@ -200,7 +200,7 @@ impl Xaver {
             }
             Message::OverwriteSave(tar) => {
                 if let Some(save_info) = &self.selected_save {
-                    match copy_save(&save_info.path, &tar) {
+                    match copy_save(&save_info.path.replace("\\", "/"), &tar) {
                         Ok(_) => match read_info(&tar) {
                             Ok(new_save_info) => {
                                 if !self.backup_saves.contains(&new_save_info) {
@@ -236,8 +236,8 @@ impl Xaver {
             }
             Message::RestoreSave(tar) => {
                 if let Some(save_info) = &self.selected_save {
-                    match copy_save(&tar, &save_info.path) {
-                        Ok(_) => match read_info(&save_info.path) {
+                    match copy_save(&tar, &save_info.path.replace("\\", "/")) {
+                        Ok(_) => match read_info(&save_info.path.replace("\\", "/")) {
                             Ok(restored_save_info) => {
                                 if let Some(pos) = self
                                     .game_saves
@@ -307,12 +307,12 @@ impl Xaver {
                 match get_config() {
                     Ok(mut cfg_info) => {
                         if !self.game_folder_input.is_empty() {
-                            cfg_info.gamedir = format!("{}", &self.game_folder_input);
+                            cfg_info.gamedir = format!("{}", &self.game_folder_input).replace("\\", "/");
                             change = true;
                             self.game_folder_input.clear();
                         }
                         if !self.save_folder_input.is_empty() {
-                            cfg_info.savedir = format!("{}", &self.save_folder_input);
+                            cfg_info.savedir = format!("{}", &self.save_folder_input).replace("\\", "/");
                             change = true;
                             self.save_folder_input.clear();
                         }
@@ -337,14 +337,14 @@ impl Xaver {
             }
             Message::NewConfig => match new_config(Config {
                 gamedir: if self.game_folder_input.is_empty() {
-                    self.game_folder.clone()
+                    self.game_folder.clone().replace("\\", "/")
                 } else {
-                    self.game_folder_input.clone()
+                    self.game_folder_input.clone().replace("\\", "/")
                 },
                 savedir: if self.save_folder_input.is_empty() {
-                    self.save_folder.clone()
+                    self.save_folder.clone().replace("\\", "/")
                 } else {
-                    self.save_folder_input.clone()
+                    self.save_folder_input.clone().replace("\\", "/")
                 },
             }) {
                 Ok(_) => {
@@ -496,7 +496,7 @@ impl Xaver {
         .spacing(10);
         let mut scrollarea = column![].spacing(10);
         for save in &self.backup_saves {
-            if save.path.contains(&self.selected_save_path) {
+            if save.path.replace("\\", "/").contains(&self.selected_save_path) {
                 scrollarea = scrollarea.push(self.save_slot(&save));
             }
         }
@@ -512,7 +512,7 @@ impl Xaver {
                     column!(
                         text!(
                             "{}",
-                            info.path
+                            info.path.replace("\\", "/")
                                 .replace(&self.selected_save_path, "")
                                 .replace(".rsg", "")
                                 .replace("/", "")

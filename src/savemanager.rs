@@ -52,7 +52,7 @@ impl fmt::Display for SaveInfo {
         let mut display_name = String::new();
         match self.save_type {
             0 => {
-                if let Some((_, fname)) = self.path.rsplit_once('/') {
+                if let Some((_, fname)) = self.path.replace("\\", "/").rsplit_once('/') {
                     display_name.push_str(&format!(
                         "Campaign Save {}: {}",
                         fname.replace(".rsg", "").replace("Exanima", ""),
@@ -71,7 +71,7 @@ impl fmt::Display for SaveInfo {
                 }
             }
             1 => {
-                if let Some((_, fname)) = self.path.rsplit_once('/') {
+                if let Some((_, fname)) = self.path.replace("\\", "/").rsplit_once('/') {
                     display_name.push_str(&format!(
                         "Arena Save {}: {}",
                         fname.replace(".rsg", "").replace("Arena", ""),
