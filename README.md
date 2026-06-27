@@ -4,6 +4,7 @@ This tool attempts to implement saving and loading for Exanima, similar to the S
 
 
 **As of right now, Xaver supports the following Operating Systems:**
+* Windows
 * Linux
 
 ## Features
@@ -15,8 +16,8 @@ Along with being able to make and restore backup saves for each save you have in
 Additionally, you can launch Exanima directly from the tool!
 
 ## Installation
-**To install from releases (Recommended)**: Go to the releases tab and select the latest version. Then, download the file marked as Xaver_{version}.zip and extract it to the directory you want to use it from. Then, launch the program and follow the instructions to set up the target folders and begin using the tool.
+**To install from releases (Recommended)**: Go to the releases tab and select the latest version. Then, download the file marked as Xaver_{version}_{win/linux}.zip and extract it to the directory you want to use it from. Then, launch the program using the executable and follow the instructions provided to begin using the tool.
 
 
-**To install from the raw code**, download the code and run cargo build --release. Then, find the executable file in target and move it to the main folder. You can then run the code.
+**To install from the raw code**, you will need to have the Rust programming library installed. Once you have done this, download the code and run cargo build --release. Then, find the executable file in the 'target' folder and move it to the main folder. You can then run the code. It is possible to run the code from outside of the file's directory, but you will need to keep the images folder in the same directory as the executable.
 
