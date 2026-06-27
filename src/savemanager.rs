@@ -176,20 +176,40 @@ pub fn read_info(tar: &String) -> Result<SaveInfo, Error> {
     }
 
     if info.save_type == 0 {
-        let player_pattern = [0xC0, 0xA8, 0x6B, 0x11, 0x00, 0x00]; // For finding the player data
-        let name_pattern = [0x07, 0xAC, 0xCD, 0x00]; // For finding the name specifically
-        if let Some(pos) = memmem::find(&data, &player_pattern) {
-            if let Some(pos2) = memmem::find(&data[pos..], &name_pattern) {
-                let mut start = pos + pos2 + 8;
-                while start < data.len() && !(0x20..=0x7E).contains(&data[start]) {
-                    start += 1;
-                }
-                let mut end = start;
-                while end < data.len() && (0x20..=0x7E).contains(&data[end]) {
-                    end += 1;
-                }
+        let player_pattern = [0xCD, 0xAC, 0xDB]; // First check pattern for finding the player data
+        let name_pattern = [0xAC, 0xCD, 0x00]; // For finding the name specifically
+        let mut found_spot = false;
+        let mut first_layer_pos = 0;
+        while found_spot == false {
+            if let Some(pos) = memmem::find(&data[first_layer_pos..], &player_pattern)
+                && data.len() > first_layer_pos
+            {
+                if (data[first_layer_pos + pos + 3] == 0x20
+                    && data[first_layer_pos + pos + 4] == 0x00)
+                    || (data[first_layer_pos + pos + 3] == 0x30
+                        && data[first_layer_pos + pos + 4] == 0x00)
+                    || (data[first_layer_pos + pos + 3] == 0x40
+                        && data[first_layer_pos + pos + 4] == 0x00)
+                {
+                    found_spot = true;
+                    if let Some(pos_2) = memmem::find(&data[first_layer_pos + pos..], &name_pattern)
+                    {
+                        let mut start = first_layer_pos + pos + pos_2 + 7;
+                        while start < data.len() && !(0x20..=0x7E).contains(&data[start]) {
+                            start += 1;
+                        }
+                        let mut end = start;
+                        while end < data.len() && (0x20..=0x7E).contains(&data[end]) {
+                            end += 1;
+                        }
 
-                info.name = format!("{}", String::from_utf8_lossy(&data[start..end]));
+                        info.name = format!("{}", String::from_utf8_lossy(&data[start..end]));
+                    }
+                } else {
+                    first_layer_pos = first_layer_pos + pos + 11;
+                }
+            } else {
+                found_spot = true;
             }
         }
     } else {

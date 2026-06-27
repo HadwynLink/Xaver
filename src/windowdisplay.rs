@@ -155,7 +155,11 @@ impl Xaver {
                     &self.default_save_name
                 };
                 if let Some(save_info) = &self.selected_save {
-                    match new_save(&save_info.path.replace("\\", "/"), &self.selected_save_path, save_name) {
+                    match new_save(
+                        &save_info.path.replace("\\", "/"),
+                        &self.selected_save_path,
+                        save_name,
+                    ) {
                         Ok(_) => {
                             // TODO: Signal success of the operation to user
                             match read_info(&format!(
@@ -307,12 +311,14 @@ impl Xaver {
                 match get_config() {
                     Ok(mut cfg_info) => {
                         if !self.game_folder_input.is_empty() {
-                            cfg_info.gamedir = format!("{}", &self.game_folder_input).replace("\\", "/");
+                            cfg_info.gamedir =
+                                format!("{}", &self.game_folder_input).replace("\\", "/");
                             change = true;
                             self.game_folder_input.clear();
                         }
                         if !self.save_folder_input.is_empty() {
-                            cfg_info.savedir = format!("{}", &self.save_folder_input).replace("\\", "/");
+                            cfg_info.savedir =
+                                format!("{}", &self.save_folder_input).replace("\\", "/");
                             change = true;
                             self.save_folder_input.clear();
                         }
@@ -496,7 +502,11 @@ impl Xaver {
         .spacing(10);
         let mut scrollarea = column![].spacing(10);
         for save in &self.backup_saves {
-            if save.path.replace("\\", "/").contains(&self.selected_save_path) {
+            if save
+                .path
+                .replace("\\", "/")
+                .contains(&self.selected_save_path)
+            {
                 scrollarea = scrollarea.push(self.save_slot(&save));
             }
         }
@@ -512,7 +522,8 @@ impl Xaver {
                     column!(
                         text!(
                             "{}",
-                            info.path.replace("\\", "/")
+                            info.path
+                                .replace("\\", "/")
                                 .replace(&self.selected_save_path, "")
                                 .replace(".rsg", "")
                                 .replace("/", "")
@@ -713,7 +724,7 @@ impl Xaver {
                                 .width(Length::FillPortion(1))
                                 .style(button::text)
                                 .height(30)
-                                .on_press(Message::OpenFolder(0)),
+                                .on_press(Message::OpenFolder(1)),
                         ]
                 ],
                 button(text!("Create New Config").width(Length::Fill).center())
